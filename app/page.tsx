@@ -56,6 +56,7 @@ type DomainStatus =
 type UploadTarget = 'prompt' | 'refinement';
 type PromptImage = { id: string; name: string; path: string };
 type AuthMode = 'signup' | 'signin';
+type AuthIntent = 'account' | 'publish';
 type AuthStatus = 'idle' | 'submitting';
 type AccountUser = { name: string; email: string };
 type PageStatus = 'suggested' | 'building' | 'ready' | 'error';
@@ -226,6 +227,7 @@ export default function Home() {
   const [account, setAccount] = useState<AccountUser | null>(null);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signup');
+  const [authIntent, setAuthIntent] = useState<AuthIntent>('account');
   const [authStatus, setAuthStatus] = useState<AuthStatus>('idle');
   const [authName, setAuthName] = useState('');
   const [authEmail, setAuthEmail] = useState('');
@@ -717,12 +719,21 @@ export default function Home() {
     if (!siteSlug) setSiteSlug(createAddressSuggestion(activePrompt));
     setDomainError('');
     if (!account) {
+      setAuthIntent('publish');
       setAuthError('');
       setAuthMode('signup');
       setAuthDialogOpen(true);
       return;
     }
     setPublishDialogOpen(true);
+  }
+
+  function openAccountDialog(mode: AuthMode) {
+    setAuthIntent('account');
+    setAuthMode(mode);
+    setAuthError('');
+    setAuthPassword('');
+    setAuthDialogOpen(true);
   }
 
   function openPublishOptions() {
@@ -777,8 +788,10 @@ export default function Home() {
       setAccount(data.user);
       setAuthPassword('');
       setAuthDialogOpen(false);
-      if (!siteSlug) setSiteSlug(createAddressSuggestion(activePrompt));
-      setPublishDialogOpen(true);
+      if (authIntent === 'publish') {
+        if (!siteSlug) setSiteSlug(createAddressSuggestion(activePrompt));
+        setPublishDialogOpen(true);
+      }
     } catch (accountError) {
       setAuthError(
         accountError instanceof Error
@@ -940,9 +953,35 @@ export default function Home() {
             </span>
             <strong>Freeable</strong>
           </div>
-          <span className="landing-model">
-            <i /> GPT-5.6 Sol
-          </span>
+          <div className="landing-header-actions">
+            <span className="landing-model">
+              <i /> GPT-5.6 Sol
+            </span>
+            {account ? (
+              <div className="landing-account" title={account.email}>
+                <UserRound />
+                <span>{account.name}</span>
+              </div>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="landing-login"
+                  onClick={() => openAccountDialog('signin')}
+                >
+                  Log in
+                </Button>
+                <Button
+                  size="sm"
+                  className="landing-signup"
+                  onClick={() => openAccountDialog('signup')}
+                >
+                  Sign up
+                </Button>
+              </>
+            )}
+          </div>
         </header>
 
         <section className="prompt-card" aria-labelledby="builder-heading">
@@ -1606,7 +1645,9 @@ export default function Home() {
             <FreeableLogo />
           </div>
           <DialogHeader>
-            <p className="eyebrow">Save & publish</p>
+            <p className="eyebrow">
+              {authIntent === 'publish' ? 'Save & publish' : 'Your account'}
+            </p>
             <DialogTitle>
               {authMode === 'signup'
                 ? 'Create your free account'
@@ -1614,8 +1655,12 @@ export default function Home() {
             </DialogTitle>
             <DialogDescription>
               {authMode === 'signup'
-                ? 'Create an account to claim this website and continue publishing it.'
-                : 'Sign in to continue publishing your website.'}
+                ? authIntent === 'publish'
+                  ? 'Create an account to claim this website and continue publishing it.'
+                  : 'Create your account now so publishing is seamless when your website is ready.'
+                : authIntent === 'publish'
+                  ? 'Sign in to continue publishing your website.'
+                  : 'Sign in to your Freeable account and continue building.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -1715,16 +1760,21 @@ export default function Home() {
                   ? 'Creating account…'
                   : 'Signing in…'
                 : authMode === 'signup'
-                  ? 'Create account & continue'
-                  : 'Sign in & continue'}
+                  ? authIntent === 'publish'
+                    ? 'Create account & continue'
+                    : 'Create account'
+                  : authIntent === 'publish'
+                    ? 'Sign in & continue'
+                    : 'Sign in'}
             </Button>
           </form>
 
           <div className="auth-assurance">
             <LockKeyhole />
             <p>
-              Your site stays in the builder while you sign up. You’ll continue
-              directly to publishing when you’re done.
+              {authIntent === 'publish'
+                ? 'Your site stays in the builder while you sign up. You’ll continue directly to publishing when you’re done.'
+                : 'You can start building immediately. Signing in now makes it easier to publish when you’re ready.'}
             </p>
           </div>
         </DialogContent>
