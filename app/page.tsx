@@ -959,154 +959,315 @@ export default function Home() {
     );
   }
 
-  if (status === 'idle') {
+  function renderAuthDialog() {
     return (
-      <main className="landing-shell">
-        <header className="landing-header">
-          <div className="landing-brand">
-            <span className="landing-brand-mark" aria-hidden="true">
-              <FreeableLogo />
-            </span>
-            <strong>Freeable</strong>
+      <Dialog
+        open={authDialogOpen}
+        onOpenChange={(open) => {
+          setAuthDialogOpen(open);
+          if (!open) {
+            setAuthError('');
+            setAuthPassword('');
+          }
+        }}
+      >
+        <DialogContent className="auth-dialog">
+          <div className="auth-dialog-brand" aria-hidden="true">
+            <FreeableLogo />
           </div>
-          <div className="landing-header-actions">
-            <span className="landing-model">
-              <i /> GPT-5.6 Sol
-            </span>
-            {account ? (
-              <div className="landing-account" title={account.email}>
-                <UserRound />
-                <span>{account.name}</span>
-              </div>
-            ) : (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="landing-login"
-                  onClick={() => openAccountDialog('signin')}
-                >
-                  Log in
-                </Button>
-                <Button
-                  size="sm"
-                  className="landing-signup"
-                  onClick={() => openAccountDialog('signup')}
-                >
-                  Sign up
-                </Button>
-              </>
-            )}
-          </div>
-        </header>
-
-        <section className="prompt-card" aria-labelledby="builder-heading">
-          <div className="landing-intro">
-            <p className="eyebrow">From idea to live website</p>
-            <h1 id="builder-heading">
-              Build a beautiful
-              <br />
-              <span>website for free.</span>
-            </h1>
-            <p className="landing-copy">
-              Tell Freeable what you want. Add visual references if you have
-              them, then let AI design, code, and prepare the site for launch.
+          <DialogHeader>
+            <p className="eyebrow">
+              {authIntent === 'publish' ? 'Save & publish' : 'Your account'}
             </p>
+            <DialogTitle>
+              {authMode === 'signup'
+                ? 'Create your free account'
+                : 'Welcome back'}
+            </DialogTitle>
+            <DialogDescription>
+              {authMode === 'signup'
+                ? authIntent === 'publish'
+                  ? 'Create an account to claim this website and continue publishing it.'
+                  : 'Create your account now so publishing is seamless when your website is ready.'
+                : authIntent === 'publish'
+                  ? 'Sign in to continue publishing your website.'
+                  : 'Sign in to your Freeable account and continue building.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="auth-switcher" aria-label="Account action">
+            <button
+              type="button"
+              className={authMode === 'signup' ? 'active' : ''}
+              onClick={() => {
+                setAuthMode('signup');
+                setAuthError('');
+                setAuthPassword('');
+              }}
+            >
+              Create account
+            </button>
+            <button
+              type="button"
+              className={authMode === 'signin' ? 'active' : ''}
+              onClick={() => {
+                setAuthMode('signin');
+                setAuthError('');
+                setAuthPassword('');
+              }}
+            >
+              Sign in
+            </button>
           </div>
 
-          <form className="prompt-form" onSubmit={handleSubmit}>
-            <label className="sr-only" htmlFor="site-prompt">
-              Describe the website you want to build
-            </label>
-            <Textarea
-              id="site-prompt"
-              name="prompt"
-              value={prompt}
-              onChange={(event) => {
-                setPrompt(event.target.value);
-                if (error) setError('');
-              }}
-              onKeyDown={(event) => {
-                if (
-                  event.key !== 'Enter' ||
-                  event.shiftKey ||
-                  event.nativeEvent.isComposing
-                )
-                  return;
-                event.preventDefault();
-                event.currentTarget.form?.requestSubmit();
-              }}
-              className="prompt-input"
-              placeholder="A serene portfolio for an architecture studio in Copenhagen..."
-            />
-            {renderAttachments('prompt', promptImages)}
-            <div className="prompt-footer">
-              <div className="prompt-tools">
-                <label
-                  className={`attach-control ${uploadingTarget === 'prompt' ? 'uploading' : ''}`}
-                >
-                  {uploadingTarget === 'prompt' ? <Spinner /> : <ImagePlus />}
-                  <span>
-                    {uploadingTarget === 'prompt' ? 'Uploading' : 'Add images'}
-                  </span>
-                  <input
-                    className="sr-only"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
-                    multiple
-                    disabled={
-                      uploadingTarget !== null ||
-                      promptImages.length >= maxAttachedImages
-                    }
-                    onChange={(event) => {
-                      void uploadImages(event.currentTarget.files, 'prompt');
-                      event.currentTarget.value = '';
-                    }}
-                  />
-                </label>
-                <span
-                  className={error || uploadError ? 'prompt-error' : ''}
-                  aria-live="polite"
-                >
-                  {error || uploadError || `Up to ${maxAttachedImages} images`}
-                </span>
+          <form className="auth-form" onSubmit={handleAccountSubmit}>
+            {authMode === 'signup' && (
+              <div className="auth-field">
+                <label htmlFor="account-name">Your name</label>
+                <Input
+                  id="account-name"
+                  name="name"
+                  value={authName}
+                  onChange={(event) => setAuthName(event.target.value)}
+                  autoComplete="name"
+                  minLength={2}
+                  maxLength={60}
+                  placeholder="Alex Morgan"
+                  required
+                />
               </div>
-              <Button
-                type="submit"
-                size="icon-lg"
-                aria-label="Build website"
-                className="build-button"
-                disabled={!prompt.trim() || uploadingTarget === 'prompt'}
-              >
-                <ArrowUp />
-              </Button>
+            )}
+            <div className="auth-field">
+              <label htmlFor="account-email">Email address</label>
+              <Input
+                id="account-email"
+                name="email"
+                type="email"
+                value={authEmail}
+                onChange={(event) => setAuthEmail(event.target.value)}
+                autoComplete="email"
+                maxLength={254}
+                placeholder="alex@example.com"
+                required
+              />
             </div>
+            <div className="auth-field">
+              <label htmlFor="account-password">Password</label>
+              <Input
+                id="account-password"
+                name="password"
+                type="password"
+                value={authPassword}
+                onChange={(event) => setAuthPassword(event.target.value)}
+                autoComplete={
+                  authMode === 'signup' ? 'new-password' : 'current-password'
+                }
+                minLength={10}
+                maxLength={128}
+                placeholder="10+ characters"
+                required
+              />
+              {authMode === 'signup' && (
+                <small>
+                  Use at least 10 characters, including a letter and number.
+                </small>
+              )}
+            </div>
+
+            {authError && (
+              <p className="auth-error" role="alert">
+                {authError}
+              </p>
+            )}
+
+            <Button
+              type="submit"
+              className="auth-submit"
+              disabled={authStatus === 'submitting'}
+            >
+              {authStatus === 'submitting' ? <Spinner /> : <LockKeyhole />}
+              {authStatus === 'submitting'
+                ? authMode === 'signup'
+                  ? 'Creating account…'
+                  : 'Signing in…'
+                : authMode === 'signup'
+                  ? authIntent === 'publish'
+                    ? 'Create account & continue'
+                    : 'Create account'
+                  : authIntent === 'publish'
+                    ? 'Sign in & continue'
+                    : 'Sign in'}
+            </Button>
           </form>
 
-          <div className="landing-proof" aria-label="Builder features">
-            <span>
-              <Sparkles /> GPT-5.6 Sol
-            </span>
-            <span>
-              <Palette /> 8 curated directions
-            </span>
-            <span>
-              <Rocket /> One-click publishing
-            </span>
+          <div className="auth-assurance">
+            <LockKeyhole />
+            <p>
+              {authIntent === 'publish'
+                ? 'Your site stays in the builder while you sign up. You’ll continue directly to publishing when you’re done.'
+                : 'You can start building immediately. Signing in now makes it easier to publish when you’re ready.'}
+            </p>
           </div>
-        </section>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
-        <footer className="landing-attribution">
-          <span>by</span>{' '}
-          <a
-            href="https://cheaperinference.com"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Cheaper Inference
-          </a>
-        </footer>
-      </main>
+  if (status === 'idle') {
+    return (
+      <>
+        <main className="landing-shell">
+          <header className="landing-header">
+            <div className="landing-brand">
+              <span className="landing-brand-mark" aria-hidden="true">
+                <FreeableLogo />
+              </span>
+              <strong>Freeable</strong>
+            </div>
+            <div className="landing-header-actions">
+              <span className="landing-model">
+                <i /> GPT-5.6 Sol
+              </span>
+              {account ? (
+                <div className="landing-account" title={account.email}>
+                  <UserRound />
+                  <span>{account.name}</span>
+                </div>
+              ) : (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="landing-login"
+                    onClick={() => openAccountDialog('signin')}
+                  >
+                    Log in
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="landing-signup"
+                    onClick={() => openAccountDialog('signup')}
+                  >
+                    Sign up
+                  </Button>
+                </>
+              )}
+            </div>
+          </header>
+
+          <section className="prompt-card" aria-labelledby="builder-heading">
+            <div className="landing-intro">
+              <p className="eyebrow">From idea to live website</p>
+              <h1 id="builder-heading">
+                Build a beautiful
+                <br />
+                <span>website for free.</span>
+              </h1>
+              <p className="landing-copy">
+                Tell Freeable what you want. Add visual references if you have
+                them, then let AI design, code, and prepare the site for launch.
+              </p>
+            </div>
+
+            <form className="prompt-form" onSubmit={handleSubmit}>
+              <label className="sr-only" htmlFor="site-prompt">
+                Describe the website you want to build
+              </label>
+              <Textarea
+                id="site-prompt"
+                name="prompt"
+                value={prompt}
+                onChange={(event) => {
+                  setPrompt(event.target.value);
+                  if (error) setError('');
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    event.key !== 'Enter' ||
+                    event.shiftKey ||
+                    event.nativeEvent.isComposing
+                  )
+                    return;
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }}
+                className="prompt-input"
+                placeholder="A serene portfolio for an architecture studio in Copenhagen..."
+              />
+              {renderAttachments('prompt', promptImages)}
+              <div className="prompt-footer">
+                <div className="prompt-tools">
+                  <label
+                    className={`attach-control ${uploadingTarget === 'prompt' ? 'uploading' : ''}`}
+                  >
+                    {uploadingTarget === 'prompt' ? <Spinner /> : <ImagePlus />}
+                    <span>
+                      {uploadingTarget === 'prompt'
+                        ? 'Uploading'
+                        : 'Add images'}
+                    </span>
+                    <input
+                      className="sr-only"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                      multiple
+                      disabled={
+                        uploadingTarget !== null ||
+                        promptImages.length >= maxAttachedImages
+                      }
+                      onChange={(event) => {
+                        void uploadImages(event.currentTarget.files, 'prompt');
+                        event.currentTarget.value = '';
+                      }}
+                    />
+                  </label>
+                  <span
+                    className={error || uploadError ? 'prompt-error' : ''}
+                    aria-live="polite"
+                  >
+                    {error ||
+                      uploadError ||
+                      `Up to ${maxAttachedImages} images`}
+                  </span>
+                </div>
+                <Button
+                  type="submit"
+                  size="icon-lg"
+                  aria-label="Build website"
+                  className="build-button"
+                  disabled={!prompt.trim() || uploadingTarget === 'prompt'}
+                >
+                  <ArrowUp />
+                </Button>
+              </div>
+            </form>
+
+            <div className="landing-proof" aria-label="Builder features">
+              <span>
+                <Sparkles /> GPT-5.6 Sol
+              </span>
+              <span>
+                <Palette /> 8 curated directions
+              </span>
+              <span>
+                <Rocket /> One-click publishing
+              </span>
+            </div>
+          </section>
+
+          <footer className="landing-attribution">
+            <span>by</span>{' '}
+            <a
+              href="https://cheaperinference.com"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Cheaper Inference
+            </a>
+          </footer>
+        </main>
+        {renderAuthDialog()}
+      </>
     );
   }
 
@@ -1655,155 +1816,7 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={authDialogOpen}
-        onOpenChange={(open) => {
-          setAuthDialogOpen(open);
-          if (!open) {
-            setAuthError('');
-            setAuthPassword('');
-          }
-        }}
-      >
-        <DialogContent className="auth-dialog">
-          <div className="auth-dialog-brand" aria-hidden="true">
-            <FreeableLogo />
-          </div>
-          <DialogHeader>
-            <p className="eyebrow">
-              {authIntent === 'publish' ? 'Save & publish' : 'Your account'}
-            </p>
-            <DialogTitle>
-              {authMode === 'signup'
-                ? 'Create your free account'
-                : 'Welcome back'}
-            </DialogTitle>
-            <DialogDescription>
-              {authMode === 'signup'
-                ? authIntent === 'publish'
-                  ? 'Create an account to claim this website and continue publishing it.'
-                  : 'Create your account now so publishing is seamless when your website is ready.'
-                : authIntent === 'publish'
-                  ? 'Sign in to continue publishing your website.'
-                  : 'Sign in to your Freeable account and continue building.'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="auth-switcher" aria-label="Account action">
-            <button
-              type="button"
-              className={authMode === 'signup' ? 'active' : ''}
-              onClick={() => {
-                setAuthMode('signup');
-                setAuthError('');
-                setAuthPassword('');
-              }}
-            >
-              Create account
-            </button>
-            <button
-              type="button"
-              className={authMode === 'signin' ? 'active' : ''}
-              onClick={() => {
-                setAuthMode('signin');
-                setAuthError('');
-                setAuthPassword('');
-              }}
-            >
-              Sign in
-            </button>
-          </div>
-
-          <form className="auth-form" onSubmit={handleAccountSubmit}>
-            {authMode === 'signup' && (
-              <div className="auth-field">
-                <label htmlFor="account-name">Your name</label>
-                <Input
-                  id="account-name"
-                  name="name"
-                  value={authName}
-                  onChange={(event) => setAuthName(event.target.value)}
-                  autoComplete="name"
-                  minLength={2}
-                  maxLength={60}
-                  placeholder="Alex Morgan"
-                  required
-                />
-              </div>
-            )}
-            <div className="auth-field">
-              <label htmlFor="account-email">Email address</label>
-              <Input
-                id="account-email"
-                name="email"
-                type="email"
-                value={authEmail}
-                onChange={(event) => setAuthEmail(event.target.value)}
-                autoComplete="email"
-                maxLength={254}
-                placeholder="alex@example.com"
-                required
-              />
-            </div>
-            <div className="auth-field">
-              <label htmlFor="account-password">Password</label>
-              <Input
-                id="account-password"
-                name="password"
-                type="password"
-                value={authPassword}
-                onChange={(event) => setAuthPassword(event.target.value)}
-                autoComplete={
-                  authMode === 'signup' ? 'new-password' : 'current-password'
-                }
-                minLength={10}
-                maxLength={128}
-                placeholder="10+ characters"
-                required
-              />
-              {authMode === 'signup' && (
-                <small>
-                  Use at least 10 characters, including a letter and number.
-                </small>
-              )}
-            </div>
-
-            {authError && (
-              <p className="auth-error" role="alert">
-                {authError}
-              </p>
-            )}
-
-            <Button
-              type="submit"
-              className="auth-submit"
-              disabled={authStatus === 'submitting'}
-            >
-              {authStatus === 'submitting' ? <Spinner /> : <LockKeyhole />}
-              {authStatus === 'submitting'
-                ? authMode === 'signup'
-                  ? 'Creating account…'
-                  : 'Signing in…'
-                : authMode === 'signup'
-                  ? authIntent === 'publish'
-                    ? 'Create account & continue'
-                    : 'Create account'
-                  : authIntent === 'publish'
-                    ? 'Sign in & continue'
-                    : 'Sign in'}
-            </Button>
-          </form>
-
-          <div className="auth-assurance">
-            <LockKeyhole />
-            <p>
-              {authIntent === 'publish'
-                ? 'Your site stays in the builder while you sign up. You’ll continue directly to publishing when you’re done.'
-                : 'You can start building immediately. Signing in now makes it easier to publish when you’re ready.'}
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {renderAuthDialog()}
 
       <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
         <DialogContent className="domain-dialog">
