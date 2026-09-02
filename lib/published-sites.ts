@@ -9,6 +9,7 @@ const createPublishedSitesTable = `
     source_prompt TEXT NOT NULL,
     custom_domain TEXT,
     domain_status TEXT NOT NULL DEFAULT 'none',
+    user_id TEXT REFERENCES accounts(id) ON DELETE SET NULL,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL
   )
@@ -31,12 +32,60 @@ export async function getPublishedSitesDatabase() {
   const sql = database;
 
   initialization ??= (async () => {
+    await sql.query(
+      `CREATE TABLE IF NOT EXISTS accounts (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at BIGINT NOT NULL
+      )`,
+    );
+    await sql.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_email
+       ON accounts (email)`,
+    );
     await sql.query(createPublishedSitesTable);
+    await sql.query(
+      `CREATE TABLE IF NOT EXISTS user_sessions (
+        token_hash TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        expires_at BIGINT NOT NULL,
+        created_at BIGINT NOT NULL
+      )`,
+    );
+    await sql.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_sessions_user
+       ON user_sessions (user_id)`,
+    );
+    await sql.query(
+      `CREATE INDEX IF NOT EXISTS idx_user_sessions_expires
+       ON user_sessions (expires_at)`,
+    );
+    await sql.query(
+      `CREATE TABLE IF NOT EXISTS auth_attempts (
+        id TEXT PRIMARY KEY NOT NULL,
+        key_hash TEXT NOT NULL,
+        attempted_at BIGINT NOT NULL
+      )`,
+    );
+    await sql.query(
+      `CREATE INDEX IF NOT EXISTS idx_auth_attempts_key
+       ON auth_attempts (key_hash)`,
+    );
+    await sql.query(
+      `ALTER TABLE published_sites
+       ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES accounts(id) ON DELETE SET NULL`,
+    );
     await sql.query(createSlugIndex);
     await sql.query(
       `CREATE UNIQUE INDEX IF NOT EXISTS idx_published_sites_custom_domain
        ON published_sites (custom_domain)
        WHERE custom_domain IS NOT NULL`,
+    );
+    await sql.query(
+      `CREATE INDEX IF NOT EXISTS idx_published_sites_user
+       ON published_sites (user_id)`,
     );
   })();
 

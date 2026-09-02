@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { getAuthenticatedUser } from '@/lib/auth';
 import { getPublishedSitesDatabase } from '@/lib/published-sites';
 import { addProjectDomain } from '@/lib/vercel-domains';
 
@@ -28,13 +29,20 @@ function createSlug(title: string) {
 }
 
 function getPublishedUrl(slug: string) {
-  const freeSiteDomain = process.env.NEXT_PUBLIC_FREE_SITE_DOMAIN
-    ?.trim()
-    .toLowerCase();
+  const freeSiteDomain =
+    process.env.NEXT_PUBLIC_FREE_SITE_DOMAIN?.trim().toLowerCase();
   return freeSiteDomain ? `https://${slug}.${freeSiteDomain}` : `/s/${slug}`;
 }
 
 export async function POST(request: Request) {
+  const user = await getAuthenticatedUser(request).catch(() => null);
+  if (!user) {
+    return NextResponse.json(
+      { error: 'Create an account or sign in before publishing.' },
+      { status: 401 },
+    );
+  }
+
   let body: {
     html?: unknown;
     prompt?: unknown;
@@ -118,6 +126,7 @@ export async function POST(request: Request) {
           domain_status = ${customDomain ? 'pending_dns' : 'none'},
           updated_at = ${now}
       WHERE slug = ${requestedSlug}
+        AND user_id = ${user.id}
       RETURNING slug
     `;
 
@@ -137,10 +146,10 @@ export async function POST(request: Request) {
   try {
     await database`
       INSERT INTO published_sites
-        (id, slug, title, html, source_prompt, custom_domain, domain_status, created_at, updated_at)
+        (id, slug, title, html, source_prompt, custom_domain, domain_status, user_id, created_at, updated_at)
       VALUES
         (${crypto.randomUUID()}, ${slug}, ${title}, ${html}, ${prompt},
-         ${customDomain || null}, ${customDomain ? 'pending_dns' : 'none'},
+         ${customDomain || null}, ${customDomain ? 'pending_dns' : 'none'}, ${user.id},
          ${now}, ${now})
     `;
   } catch {

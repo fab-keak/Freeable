@@ -3,7 +3,7 @@
 /* oxlint-disable next/no-img-element -- User-uploaded thumbnails use dynamic Blob URLs. */
 
 import { upload } from '@vercel/blob/client';
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { type SyntheticEvent, useEffect, useRef, useState } from 'react';
 import {
   ArrowUp,
   Check,
@@ -16,11 +16,13 @@ import {
   Globe2,
   ImagePlus,
   Link2,
+  LockKeyhole,
   Monitor,
   Palette,
   Rocket,
   Smartphone,
   Sparkles,
+  UserRound,
   WandSparkles,
   X,
 } from 'lucide-react';
@@ -51,6 +53,9 @@ type DomainStatus =
   | 'error';
 type UploadTarget = 'prompt' | 'refinement';
 type PromptImage = { id: string; name: string; path: string };
+type AuthMode = 'signup' | 'signin';
+type AuthStatus = 'idle' | 'submitting';
+type AccountUser = { name: string; email: string };
 
 const stages = [
   'Reading your brief',
@@ -120,8 +125,31 @@ export default function Home() {
   const [domainStatus, setDomainStatus] = useState<DomainStatus>('idle');
   const [domainError, setDomainError] = useState('');
   const [templateId, setTemplateId] = useState('');
+  const [account, setAccount] = useState<AccountUser | null>(null);
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>('signup');
+  const [authStatus, setAuthStatus] = useState<AuthStatus>('idle');
+  const [authName, setAuthName] = useState('');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState('');
   const requestRef = useRef<AbortController | null>(null);
   const activeTemplate = getDesignTemplate(templateId);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch('/api/auth', {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const data = (await response.json()) as { user?: AccountUser | null };
+        setAccount(data.user ?? null);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     if (status !== 'building') return;
@@ -222,7 +250,7 @@ export default function Home() {
     }
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const instruction = prompt.trim();
     if (instruction.length < 12) {
@@ -234,7 +262,7 @@ export default function Home() {
     void buildSite(instruction, undefined, promptImages);
   }
 
-  function handleRefine(event: FormEvent<HTMLFormElement>) {
+  function handleRefine(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextInstruction = refinement.trim();
     if (!nextInstruction || !html) return;
@@ -367,7 +395,54 @@ export default function Home() {
   function openPublishOptions() {
     if (!siteSlug) setSiteSlug(createAddressSuggestion(activePrompt));
     setDomainError('');
+    if (!account) {
+      setAuthError('');
+      setAuthMode('signup');
+      setAuthDialogOpen(true);
+      return;
+    }
     setPublishDialogOpen(true);
+  }
+
+  async function handleAccountSubmit(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (authStatus === 'submitting') return;
+
+    setAuthStatus('submitting');
+    setAuthError('');
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: authMode,
+          name: authMode === 'signup' ? authName : undefined,
+          email: authEmail,
+          password: authPassword,
+        }),
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        user?: AccountUser;
+      };
+      if (!response.ok || !data.user) {
+        throw new Error(data.error || 'Your account could not be created.');
+      }
+
+      setAccount(data.user);
+      setAuthPassword('');
+      setAuthDialogOpen(false);
+      if (!siteSlug) setSiteSlug(createAddressSuggestion(activePrompt));
+      setPublishDialogOpen(true);
+    } catch (accountError) {
+      setAuthError(
+        accountError instanceof Error
+          ? accountError.message
+          : 'Accounts are temporarily unavailable. Please try again.',
+      );
+    } finally {
+      setAuthStatus('idle');
+    }
   }
 
   async function publishSite() {
@@ -402,6 +477,16 @@ export default function Home() {
         path?: string;
         url?: string;
       };
+
+      if (response.status === 401) {
+        setAccount(null);
+        setPublishStatus('idle');
+        setPublishDialogOpen(false);
+        setAuthMode('signin');
+        setAuthError(data.error || 'Sign in again to publish.');
+        setAuthDialogOpen(true);
+        return;
+      }
 
       if (!response.ok || !data.path) {
         throw new Error(data.error || 'The site could not be published.');
@@ -534,7 +619,6 @@ export default function Home() {
               }}
               className="prompt-input"
               placeholder="A serene portfolio for an architecture studio in Copenhagen..."
-              autoFocus
             />
             {renderAttachments('prompt', promptImages)}
             <div className="prompt-footer">
@@ -619,6 +703,12 @@ export default function Home() {
         </div>
 
         <div className="studio-actions">
+          {account && (
+            <div className="account-chip" title={account.email}>
+              <UserRound />
+              <span>{account.name}</span>
+            </div>
+          )}
           <Button variant="ghost" size="sm" onClick={copyCode} disabled={!html}>
             {copied ? <Check /> : <Copy />}
             <span className="desktop-label">
@@ -970,6 +1060,145 @@ export default function Home() {
         </aside>
       </section>
 
+      <Dialog
+        open={authDialogOpen}
+        onOpenChange={(open) => {
+          setAuthDialogOpen(open);
+          if (!open) {
+            setAuthError('');
+            setAuthPassword('');
+          }
+        }}
+      >
+        <DialogContent className="auth-dialog">
+          <div className="auth-dialog-brand" aria-hidden="true">
+            <SleekSiteLogo />
+          </div>
+          <DialogHeader>
+            <p className="eyebrow">Save & publish</p>
+            <DialogTitle>
+              {authMode === 'signup'
+                ? 'Create your free account'
+                : 'Welcome back'}
+            </DialogTitle>
+            <DialogDescription>
+              {authMode === 'signup'
+                ? 'Create an account to claim this website and continue publishing it.'
+                : 'Sign in to continue publishing your website.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="auth-switcher" aria-label="Account action">
+            <button
+              type="button"
+              className={authMode === 'signup' ? 'active' : ''}
+              onClick={() => {
+                setAuthMode('signup');
+                setAuthError('');
+                setAuthPassword('');
+              }}
+            >
+              Create account
+            </button>
+            <button
+              type="button"
+              className={authMode === 'signin' ? 'active' : ''}
+              onClick={() => {
+                setAuthMode('signin');
+                setAuthError('');
+                setAuthPassword('');
+              }}
+            >
+              Sign in
+            </button>
+          </div>
+
+          <form className="auth-form" onSubmit={handleAccountSubmit}>
+            {authMode === 'signup' && (
+              <div className="auth-field">
+                <label htmlFor="account-name">Your name</label>
+                <Input
+                  id="account-name"
+                  name="name"
+                  value={authName}
+                  onChange={(event) => setAuthName(event.target.value)}
+                  autoComplete="name"
+                  minLength={2}
+                  maxLength={60}
+                  placeholder="Alex Morgan"
+                  required
+                />
+              </div>
+            )}
+            <div className="auth-field">
+              <label htmlFor="account-email">Email address</label>
+              <Input
+                id="account-email"
+                name="email"
+                type="email"
+                value={authEmail}
+                onChange={(event) => setAuthEmail(event.target.value)}
+                autoComplete="email"
+                maxLength={254}
+                placeholder="alex@example.com"
+                required
+              />
+            </div>
+            <div className="auth-field">
+              <label htmlFor="account-password">Password</label>
+              <Input
+                id="account-password"
+                name="password"
+                type="password"
+                value={authPassword}
+                onChange={(event) => setAuthPassword(event.target.value)}
+                autoComplete={
+                  authMode === 'signup' ? 'new-password' : 'current-password'
+                }
+                minLength={10}
+                maxLength={128}
+                placeholder="10+ characters"
+                required
+              />
+              {authMode === 'signup' && (
+                <small>
+                  Use at least 10 characters, including a letter and number.
+                </small>
+              )}
+            </div>
+
+            {authError && (
+              <p className="auth-error" role="alert">
+                {authError}
+              </p>
+            )}
+
+            <Button
+              type="submit"
+              className="auth-submit"
+              disabled={authStatus === 'submitting'}
+            >
+              {authStatus === 'submitting' ? <Spinner /> : <LockKeyhole />}
+              {authStatus === 'submitting'
+                ? authMode === 'signup'
+                  ? 'Creating account…'
+                  : 'Signing in…'
+                : authMode === 'signup'
+                  ? 'Create account & continue'
+                  : 'Sign in & continue'}
+            </Button>
+          </form>
+
+          <div className="auth-assurance">
+            <LockKeyhole />
+            <p>
+              Your site stays in the builder while you sign up. You’ll continue
+              directly to publishing when you’re done.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={publishDialogOpen} onOpenChange={setPublishDialogOpen}>
         <DialogContent className="domain-dialog">
           <DialogHeader>
@@ -981,11 +1210,7 @@ export default function Home() {
             </DialogDescription>
           </DialogHeader>
 
-          <div
-            className="domain-options"
-            role="group"
-            aria-label="Publishing address"
-          >
+          <fieldset className="domain-options" aria-label="Publishing address">
             <button
               type="button"
               className={publishMode === 'free' ? 'selected' : ''}
@@ -1018,7 +1243,7 @@ export default function Home() {
               <small>Use a domain you already own</small>
               {publishMode === 'custom' && <Check />}
             </button>
-          </div>
+          </fieldset>
 
           {publishMode === 'free' ? (
             <div className="domain-field">

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { getAuthenticatedUser } from '@/lib/auth';
 import { getPublishedSitesDatabase } from '@/lib/published-sites';
 import { domainTarget } from '@/lib/vercel-domains';
 
@@ -8,6 +9,14 @@ const domainPattern =
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export async function POST(request: Request) {
+  const user = await getAuthenticatedUser(request).catch(() => null);
+  if (!user) {
+    return NextResponse.json(
+      { error: 'Sign in to manage this domain.' },
+      { status: 401 },
+    );
+  }
+
   let body: { domain?: unknown; slug?: unknown };
 
   try {
@@ -37,6 +46,19 @@ export async function POST(request: Request) {
   }
 
   try {
+    const database = await getPublishedSitesDatabase();
+    const ownedSites = await database`
+      SELECT slug FROM published_sites
+      WHERE slug = ${slug} AND custom_domain = ${domain} AND user_id = ${user.id}
+      LIMIT 1
+    `;
+    if (!ownedSites.length) {
+      return NextResponse.json(
+        { error: 'This domain is not attached to your account.' },
+        { status: 404 },
+      );
+    }
+
     const dnsResponse = await fetch(
       `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=CNAME`,
       {
@@ -57,12 +79,11 @@ export async function POST(request: Request) {
       ),
     );
 
-    const database = await getPublishedSitesDatabase();
     await database`
       UPDATE published_sites
       SET domain_status = ${connected ? 'dns_verified' : 'pending_dns'},
           updated_at = ${Date.now()}
-      WHERE slug = ${slug} AND custom_domain = ${domain}
+      WHERE slug = ${slug} AND custom_domain = ${domain} AND user_id = ${user.id}
     `;
 
     return NextResponse.json({ connected, domain, target: domainTarget });
