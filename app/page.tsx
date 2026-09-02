@@ -1093,48 +1093,50 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="studio-body">
-        <nav className="pages-rail" aria-label="Website pages">
-          <div className="pages-rail-heading">
-            <div>
-              <p className="eyebrow">Site map</p>
-              <strong>Pages</strong>
+      <section className={`studio-body ${sitePages.length ? 'has-pages' : ''}`}>
+        {sitePages.length > 0 && (
+          <nav className="pages-rail" aria-label="Website pages">
+            <div className="pages-rail-heading">
+              <div>
+                <p className="eyebrow">Site map</p>
+                <strong>Pages</strong>
+              </div>
+              <span>{sitePages.length}</span>
             </div>
-            <span>{sitePages.length}</span>
-          </div>
-          <div className="pages-list">
-            {sitePages.map((page) => (
+            <div className="pages-list">
+              {sitePages.map((page) => (
+                <button
+                  type="button"
+                  key={page.id}
+                  className={page.id === selectedPage?.id ? 'active' : ''}
+                  onClick={() => setSelectedPageId(page.id)}
+                >
+                  <span className={`page-status ${page.status}`}>
+                    {page.status === 'building' ? <Spinner /> : <FileText />}
+                  </span>
+                  <span>
+                    <strong>{page.title}</strong>
+                    <small>{page.slug ? `/${page.slug}` : '/'}</small>
+                  </span>
+                  {page.status === 'ready' && <Check className="page-check" />}
+                </button>
+              ))}
+            </div>
+            {unfinishedPages.length > 0 && status === 'ready' && (
               <button
                 type="button"
-                key={page.id}
-                className={page.id === selectedPage?.id ? 'active' : ''}
-                onClick={() => setSelectedPageId(page.id)}
+                className="build-pages-button"
+                onClick={() => void generateAllSuggested()}
               >
-                <span className={`page-status ${page.status}`}>
-                  {page.status === 'building' ? <Spinner /> : <FileText />}
-                </span>
+                <Files />
                 <span>
-                  <strong>{page.title}</strong>
-                  <small>{page.slug ? `/${page.slug}` : '/'}</small>
+                  <strong>Build all pages</strong>
+                  <small>{unfinishedPages.length} remaining</small>
                 </span>
-                {page.status === 'ready' && <Check className="page-check" />}
               </button>
-            ))}
-          </div>
-          {unfinishedPages.length > 0 && status === 'ready' && (
-            <button
-              type="button"
-              className="build-pages-button"
-              onClick={() => void generateAllSuggested()}
-            >
-              <Files />
-              <span>
-                <strong>Build all pages</strong>
-                <small>{unfinishedPages.length} remaining</small>
-              </span>
-            </button>
-          )}
-        </nav>
+            )}
+          </nav>
+        )}
 
         <div className="preview-area">
           <div className="preview-toolbar">

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Mono, Instrument_Serif, Inter } from 'next/font/google';
 import './globals.css';
+import './editor-pages.css';
 
 const inter = Inter({
   variable: '--font-inter',

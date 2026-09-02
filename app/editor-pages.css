@@ -1,0 +1,205 @@
+/* Isolated editor layout so page-rail releases cannot reuse an older grid asset. */
+.studio-body.has-pages {
+  grid-template-columns: 184px minmax(0, 1fr) 332px;
+}
+
+.pages-rail {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 18px 12px;
+  border-right: 1px solid rgb(242 246 244 / 12%);
+  background: #081114;
+}
+
+.pages-rail-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 5px 15px;
+}
+
+.pages-rail-heading .eyebrow {
+  margin: 0 0 2px;
+  color: #697471;
+  font-size: 8px;
+}
+
+.pages-rail-heading strong {
+  font-size: 13px;
+  font-weight: 620;
+}
+
+.pages-rail-heading > span {
+  display: grid;
+  min-width: 23px;
+  height: 23px;
+  place-items: center;
+  border: 1px solid rgb(242 246 244 / 12%);
+  border-radius: 999px;
+  color: #929c99;
+  font-family: var(--font-ibm-plex-mono), monospace;
+  font-size: 9px;
+}
+
+.pages-list {
+  display: grid;
+  gap: 4px;
+}
+
+.pages-list > button {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 25px minmax(0, 1fr) 13px;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #929c99;
+  text-align: left;
+  cursor: pointer;
+  transition: 150ms ease;
+}
+
+.pages-list > button:hover {
+  color: #f2f6f4;
+  background: rgb(242 246 244 / 4%);
+}
+
+.pages-list > button.active {
+  border-color: rgb(216 255 0 / 24%);
+  color: #f2f6f4;
+  background: rgb(216 255 0 / 7%);
+}
+
+.page-status {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 1px solid rgb(242 246 244 / 12%);
+  border-radius: 3px;
+  color: #6f7a77;
+  background: #0d181b;
+}
+
+.page-status.ready {
+  color: #d8ff00;
+}
+
+.page-status.error {
+  color: #ff8f8f;
+}
+
+.page-status.building {
+  color: #040d10;
+  background: #d8ff00;
+}
+
+.page-status svg,
+.page-check {
+  width: 12px;
+  height: 12px;
+}
+
+.page-check {
+  color: #d8ff00;
+}
+
+.pages-list > button > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+}
+
+.pages-list strong,
+.pages-list small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pages-list strong {
+  font-size: 10px;
+  font-weight: 580;
+}
+
+.pages-list small {
+  margin-top: 2px;
+  color: #65706d;
+  font-family: var(--font-ibm-plex-mono), monospace;
+  font-size: 8px;
+}
+
+.build-pages-button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: auto;
+  padding: 10px;
+  border: 1px solid rgb(216 255 0 / 22%);
+  border-radius: 4px;
+  color: #d8ff00;
+  background: rgb(216 255 0 / 6%);
+  text-align: left;
+  cursor: pointer;
+}
+
+.build-pages-button:hover {
+  background: rgb(216 255 0 / 11%);
+}
+
+.build-pages-button > svg {
+  width: 15px;
+  flex: 0 0 auto;
+}
+
+.build-pages-button span {
+  display: grid;
+}
+
+.build-pages-button strong {
+  font-size: 9px;
+}
+
+.build-pages-button small {
+  margin-top: 2px;
+  color: #7e8986;
+  font-size: 8px;
+}
+
+@media (max-width: 1180px) {
+  .studio-body.has-pages {
+    grid-template-columns: 164px minmax(0, 1fr) 300px;
+  }
+}
+
+@media (max-width: 900px) {
+  .studio-body.has-pages {
+    grid-template-columns: 1fr;
+  }
+
+  .pages-rail {
+    padding: 11px 12px;
+    border-right: 0;
+    border-bottom: 1px solid rgb(242 246 244 / 12%);
+  }
+
+  .pages-rail-heading {
+    display: none;
+  }
+
+  .pages-list {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .pages-list > button {
+    min-width: 146px;
+  }
+
+  .build-pages-button {
+    display: none;
+  }
+}

@@ -2051,7 +2051,7 @@ body {
   justify-self: start;
 }
 
-.studio-body {
+.studio-body.has-pages {
   grid-template-columns: 184px minmax(0, 1fr) 332px;
 }
 
@@ -2373,7 +2373,7 @@ body {
 }
 
 @media (max-width: 1180px) {
-  .studio-body {
+  .studio-body.has-pages {
     grid-template-columns: 164px minmax(0, 1fr) 300px;
   }
 
@@ -2383,7 +2383,7 @@ body {
 }
 
 @media (max-width: 900px) {
-  .studio-body {
+  .studio-body.has-pages {
     grid-template-columns: 1fr;
   }
 
