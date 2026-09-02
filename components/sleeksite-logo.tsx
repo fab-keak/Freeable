@@ -1,8 +1,8 @@
-type SleekSiteLogoProps = {
+type FreeableLogoProps = {
   className?: string;
 };
 
-export function SleekSiteLogo({ className }: SleekSiteLogoProps) {
+export function FreeableLogo({ className }: FreeableLogoProps) {
   return (
     <svg
       aria-hidden="true"
@@ -21,3 +21,6 @@ export function SleekSiteLogo({ className }: SleekSiteLogoProps) {
     </svg>
   );
 }
+
+// Keep the previous export available while older deployments finish updating.
+export const SleekSiteLogo = FreeableLogo;
