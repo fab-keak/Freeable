@@ -45,6 +45,7 @@ export const publishedSites = pgTable(
     slug: text('slug').notNull(),
     title: text('title').notNull(),
     html: text('html').notNull(),
+    pagesJson: text('pages_json').notNull().default('[]'),
     sourcePrompt: text('source_prompt').notNull(),
     customDomain: text('custom_domain'),
     domainStatus: text('domain_status').notNull().default('none'),

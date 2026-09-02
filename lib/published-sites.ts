@@ -6,6 +6,7 @@ const createPublishedSitesTable = `
     slug TEXT NOT NULL,
     title TEXT NOT NULL,
     html TEXT NOT NULL,
+    pages_json TEXT NOT NULL DEFAULT '[]',
     source_prompt TEXT NOT NULL,
     custom_domain TEXT,
     domain_status TEXT NOT NULL DEFAULT 'none',
@@ -76,6 +77,10 @@ export async function getPublishedSitesDatabase() {
     await sql.query(
       `ALTER TABLE published_sites
        ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES accounts(id) ON DELETE SET NULL`,
+    );
+    await sql.query(
+      `ALTER TABLE published_sites
+       ADD COLUMN IF NOT EXISTS pages_json TEXT NOT NULL DEFAULT '[]'`,
     );
     await sql.query(createSlugIndex);
     await sql.query(

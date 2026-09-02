@@ -13,6 +13,8 @@ import {
   Copy,
   Download,
   ExternalLink,
+  FileText,
+  Files,
   Globe2,
   ImagePlus,
   Link2,
@@ -56,6 +58,15 @@ type PromptImage = { id: string; name: string; path: string };
 type AuthMode = 'signup' | 'signin';
 type AuthStatus = 'idle' | 'submitting';
 type AccountUser = { name: string; email: string };
+type PageStatus = 'suggested' | 'building' | 'ready' | 'error';
+type SitePage = {
+  id: string;
+  title: string;
+  slug: string;
+  html: string;
+  status: PageStatus;
+  error?: string;
+};
 
 const stages = [
   'Reading your brief',
@@ -97,13 +108,90 @@ function cleanGeneratedHtml(value: string) {
   return start >= 0 ? withoutFences.slice(start) : withoutFences;
 }
 
+function normalizeInternalPath(value: string) {
+  if (!value.startsWith('/') || value.startsWith('//')) return '';
+  const path = value.split(/[?#]/)[0].replace(/^\/+|\/+$/g, '');
+  if (!path || /^(api|_next|s)(\/|$)/.test(path)) return '';
+  if (/\.[a-z0-9]{2,5}$/i.test(path)) return '';
+  return path
+    .split('/')
+    .map((part) =>
+      part
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/^-+|-+$/g, ''),
+    )
+    .filter(Boolean)
+    .join('/');
+}
+
+function titleFromSlug(slug: string) {
+  const segment = slug.split('/').at(-1) || 'Page';
+  return segment
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function discoverSuggestedPages(html: string): SitePage[] {
+  const document = new DOMParser().parseFromString(html, 'text/html');
+  const seen = new Set<string>();
+  const pages: SitePage[] = [];
+
+  for (const anchor of Array.from(document.querySelectorAll('a[href]'))) {
+    const slug = normalizeInternalPath(anchor.getAttribute('href') || '');
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+    const label = (anchor.textContent || '').replace(/\s+/g, ' ').trim();
+    const title =
+      label &&
+      !/^(learn|read|view|see|explore|discover|get started|start now)(\s+more)?$/i.test(
+        label,
+      )
+        ? label
+        : titleFromSlug(slug);
+    pages.push({
+      id: crypto.randomUUID(),
+      title: title.slice(0, 60),
+      slug,
+      html: '',
+      status: 'suggested',
+    });
+    if (pages.length === 6) break;
+  }
+
+  return pages;
+}
+
+function createPreviewHtml(html: string) {
+  const bridge = `<script>document.addEventListener('click',function(event){var anchor=event.target.closest&&event.target.closest('a[href]');if(!anchor)return;var href=anchor.getAttribute('href')||'';if(href.charAt(0)==='/'&&href.slice(0,2)!=='//'){event.preventDefault();parent.postMessage({type:'sleeksite:navigate',href:href},'*')}});</script>`;
+  return /<\/body>/i.test(html)
+    ? html.replace(/<\/body>/i, `${bridge}</body>`)
+    : `${html}${bridge}`;
+}
+
+function removeLinksToPages(html: string, slugs: Set<string>) {
+  const document = new DOMParser().parseFromString(html, 'text/html');
+  for (const anchor of Array.from(document.querySelectorAll('a[href]'))) {
+    const slug = normalizeInternalPath(anchor.getAttribute('href') || '');
+    if (!slugs.has(slug)) continue;
+    anchor.removeAttribute('href');
+    anchor.setAttribute('aria-disabled', 'true');
+    anchor.setAttribute('data-sleeksite-removed-link', slug);
+  }
+  return `<!doctype html>\n${document.documentElement.outerHTML}`;
+}
+
 export default function Home() {
   const [prompt, setPrompt] = useState('');
   const [activePrompt, setActivePrompt] = useState('');
   const [refinement, setRefinement] = useState('');
   const [status, setStatus] = useState<BuildStatus>('idle');
   const [stage, setStage] = useState(0);
-  const [html, setHtml] = useState('');
+  const [sitePages, setSitePages] = useState<SitePage[]>([]);
+  const [selectedPageId, setSelectedPageId] = useState('');
   const [error, setError] = useState('');
   const [viewport, setViewport] = useState<Viewport>('desktop');
   const [copied, setCopied] = useState(false);
@@ -133,8 +221,16 @@ export default function Home() {
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
+  const [siteCompletionDialogOpen, setSiteCompletionDialogOpen] =
+    useState(false);
   const requestRef = useRef<AbortController | null>(null);
+  const pageRequestsRef = useRef(new Map<string, AbortController>());
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const activeTemplate = getDesignTemplate(templateId);
+  const selectedPage =
+    sitePages.find((page) => page.id === selectedPageId) ?? sitePages[0];
+  const html = selectedPage?.html ?? '';
+  const unfinishedPages = sitePages.filter((page) => page.status !== 'ready');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -160,79 +256,145 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, [status]);
 
-  async function buildSite(
-    instruction: string,
-    previousHtml?: string,
-    images: PromptImage[] = [],
-  ) {
+  useEffect(() => {
+    function handlePreviewNavigation(event: MessageEvent) {
+      if (
+        event.source !== iframeRef.current?.contentWindow ||
+        !event.data ||
+        event.data.type !== 'sleeksite:navigate' ||
+        typeof event.data.href !== 'string'
+      )
+        return;
+      const requestedPath = event.data.href
+        .split(/[?#]/)[0]
+        .replace(/^\/+|\/+$/g, '');
+      const slug = requestedPath ? normalizeInternalPath(event.data.href) : '';
+      if (requestedPath && !slug) return;
+      const nextPage = sitePages.find((page) => page.slug === slug);
+      if (nextPage) setSelectedPageId(nextPage.id);
+    }
+    window.addEventListener('message', handlePreviewNavigation);
+    return () => window.removeEventListener('message', handlePreviewNavigation);
+  }, [sitePages]);
+
+  async function requestGeneratedHtml({
+    instruction,
+    previousHtml,
+    images = [],
+    controller,
+    pageContext,
+    trackHomepageProgress = false,
+  }: {
+    instruction: string;
+    previousHtml?: string;
+    images?: PromptImage[];
+    controller: AbortController;
+    pageContext?: {
+      title: string;
+      slug: string;
+      sitePages: Array<{ title: string; slug: string }>;
+      referenceHtml: string;
+    };
+    trackHomepageProgress?: boolean;
+  }) {
+    const response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: instruction,
+        previousHtml,
+        images,
+        templateId: previousHtml || pageContext ? templateId : undefined,
+        pageContext,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const data = (await response.json()) as { error?: string };
+      throw new Error(data.error || 'The site could not be generated.');
+    }
+
+    if (!response.body) throw new Error('The model returned an empty site.');
+
+    const selectedTemplate = response.headers.get('X-SleekSite-Template');
+    if (selectedTemplate) setTemplateId(selectedTemplate);
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let generated = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      generated += decoder.decode(value, { stream: true });
+
+      const markerIndex = generated.indexOf(streamErrorPrefix);
+      if (markerIndex >= 0) {
+        throw new Error(
+          generated.slice(markerIndex + streamErrorPrefix.length).trim() ||
+            'The site could not be generated.',
+        );
+      }
+
+      if (trackHomepageProgress && generated.length > 1_000) setStage(2);
+      if (trackHomepageProgress && generated.length > 6_000) setStage(3);
+    }
+
+    generated += decoder.decode();
+    const siteHtml = cleanGeneratedHtml(generated);
+    if (!/<html|<!doctype/i.test(siteHtml) || !/<\/html>\s*$/i.test(siteHtml)) {
+      throw new Error('The generated site was incomplete. Please try again.');
+    }
+    return siteHtml;
+  }
+
+  function mergeDiscoveredPages(current: SitePage[], pageHtml: string) {
+    const existingSlugs = new Set(current.map((page) => page.slug));
+    return [
+      ...current,
+      ...discoverSuggestedPages(pageHtml).filter(
+        (page) => !existingSlugs.has(page.slug),
+      ),
+    ].slice(0, 8);
+  }
+
+  async function buildHome(instruction: string, images: PromptImage[] = []) {
     requestRef.current?.abort();
+    for (const controller of pageRequestsRef.current.values())
+      controller.abort();
+    pageRequestsRef.current.clear();
     const controller = new AbortController();
     requestRef.current = controller;
 
     setActivePrompt(instruction);
     setActiveImages(images);
+    setSitePages([]);
+    setSelectedPageId('');
     setStatus('building');
     setStage(0);
     setError('');
     setUploadError('');
     setCopied(false);
-    if (previousHtml && publishedUrl) setPublishStatus('idle');
     setPublishError('');
 
     try {
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: instruction,
-          previousHtml,
-          images,
-          templateId: previousHtml ? templateId : undefined,
-        }),
-        signal: controller.signal,
+      const siteHtml = await requestGeneratedHtml({
+        instruction,
+        images,
+        controller,
+        trackHomepageProgress: true,
       });
 
-      if (!response.ok) {
-        const data = (await response.json()) as { error?: string };
-        throw new Error(data.error || 'The site could not be generated.');
-      }
-
-      if (!response.body) throw new Error('The model returned an empty site.');
-
-      const selectedTemplate = response.headers.get('X-SleekSite-Template');
-      if (selectedTemplate) setTemplateId(selectedTemplate);
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let generated = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        generated += decoder.decode(value, { stream: true });
-
-        const markerIndex = generated.indexOf(streamErrorPrefix);
-        if (markerIndex >= 0) {
-          throw new Error(
-            generated.slice(markerIndex + streamErrorPrefix.length).trim() ||
-              'The site could not be generated.',
-          );
-        }
-
-        if (generated.length > 1_000) setStage(2);
-        if (generated.length > 6_000) setStage(3);
-      }
-
-      generated += decoder.decode();
-      const siteHtml = cleanGeneratedHtml(generated);
-      if (
-        !/<html|<!doctype/i.test(siteHtml) ||
-        !/<\/html>\s*$/i.test(siteHtml)
-      ) {
-        throw new Error('The generated site was incomplete. Please try again.');
-      }
-
-      setHtml(siteHtml);
+      const homePage: SitePage = {
+        id: 'home',
+        title: 'Home',
+        slug: '',
+        html: siteHtml,
+        status: 'ready',
+      };
+      setSitePages(mergeDiscoveredPages([homePage], siteHtml));
+      setSelectedPageId('home');
       setStage(stages.length);
       setStatus('ready');
     } catch (buildError) {
@@ -250,6 +412,147 @@ export default function Home() {
     }
   }
 
+  async function generatePage(
+    pageId: string,
+    pagesSnapshot: SitePage[] = sitePages,
+  ) {
+    const page = pagesSnapshot.find((candidate) => candidate.id === pageId);
+    const homePage = pagesSnapshot.find((candidate) => candidate.slug === '');
+    if (!page || !page.slug || !homePage?.html) return;
+
+    pageRequestsRef.current.get(pageId)?.abort();
+    const controller = new AbortController();
+    pageRequestsRef.current.set(pageId, controller);
+    setSitePages((current) =>
+      current.map((candidate) =>
+        candidate.id === pageId
+          ? { ...candidate, status: 'building', error: undefined }
+          : candidate,
+      ),
+    );
+    setPublishError('');
+
+    try {
+      const pageHtml = await requestGeneratedHtml({
+        instruction: activePrompt,
+        controller,
+        pageContext: {
+          title: page.title,
+          slug: page.slug,
+          sitePages: pagesSnapshot.map(({ title, slug }) => ({ title, slug })),
+          referenceHtml: homePage.html,
+        },
+      });
+      setSitePages((current) => {
+        const updated = current.map((candidate) =>
+          candidate.id === pageId
+            ? { ...candidate, html: pageHtml, status: 'ready' as const }
+            : candidate,
+        );
+        return mergeDiscoveredPages(updated, pageHtml);
+      });
+      if (publishedUrl) setPublishStatus('idle');
+    } catch (pageError) {
+      if (pageError instanceof DOMException && pageError.name === 'AbortError')
+        return;
+      setSitePages((current) =>
+        current.map((candidate) =>
+          candidate.id === pageId
+            ? {
+                ...candidate,
+                status: 'error',
+                error:
+                  pageError instanceof Error
+                    ? pageError.message
+                    : 'This page could not be generated.',
+              }
+            : candidate,
+        ),
+      );
+    } finally {
+      if (pageRequestsRef.current.get(pageId) === controller)
+        pageRequestsRef.current.delete(pageId);
+    }
+  }
+
+  async function generateAllSuggested() {
+    const snapshot = sitePages;
+    const queue = snapshot
+      .filter((page) => page.status === 'suggested' || page.status === 'error')
+      .map((page) => page.id);
+    if (!queue.length) return;
+    setSiteCompletionDialogOpen(false);
+    let nextIndex = 0;
+    async function worker() {
+      while (nextIndex < queue.length) {
+        const pageId = queue[nextIndex++];
+        await generatePage(pageId, snapshot);
+      }
+    }
+    await Promise.all([worker(), worker()]);
+  }
+
+  async function reviseSelectedPage(
+    instruction: string,
+    images: PromptImage[],
+  ) {
+    if (!selectedPage?.html) return;
+    const pageId = selectedPage.id;
+    pageRequestsRef.current.get(pageId)?.abort();
+    const controller = new AbortController();
+    pageRequestsRef.current.set(pageId, controller);
+    setSitePages((current) =>
+      current.map((page) =>
+        page.id === pageId
+          ? { ...page, status: 'building', error: undefined }
+          : page,
+      ),
+    );
+    try {
+      const pageHtml = await requestGeneratedHtml({
+        instruction,
+        previousHtml: selectedPage.html,
+        images,
+        controller,
+      });
+      setSitePages((current) =>
+        mergeDiscoveredPages(
+          current.map((page) =>
+            page.id === pageId
+              ? { ...page, html: pageHtml, status: 'ready' as const }
+              : page,
+          ),
+          pageHtml,
+        ),
+      );
+      if (publishedUrl) setPublishStatus('idle');
+    } catch (pageError) {
+      if (pageError instanceof DOMException && pageError.name === 'AbortError')
+        return;
+      setSitePages((current) =>
+        current.map((page) =>
+          page.id === pageId
+            ? {
+                ...page,
+                status: 'ready',
+                error: undefined,
+              }
+            : page,
+        ),
+      );
+      setPublishError(
+        `Your previous version is safe. ${
+          pageError instanceof Error
+            ? pageError.message
+            : 'The changes could not be applied.'
+        }`,
+      );
+    } finally {
+      if (pageRequestsRef.current.get(pageId) === controller)
+        pageRequestsRef.current.delete(pageId);
+    }
+  }
+
   function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const instruction = prompt.trim();
@@ -259,7 +562,7 @@ export default function Home() {
       );
       return;
     }
-    void buildSite(instruction, undefined, promptImages);
+    void buildHome(instruction, promptImages);
   }
 
   function handleRefine(event: SyntheticEvent<HTMLFormElement>) {
@@ -269,7 +572,7 @@ export default function Home() {
     const nextImages = refinementImages;
     setRefinement('');
     setRefinementImages([]);
-    void buildSite(nextInstruction, html, nextImages);
+    void reviseSelectedPage(nextInstruction, nextImages);
   }
 
   async function uploadImages(fileList: FileList | null, target: UploadTarget) {
@@ -351,9 +654,13 @@ export default function Home() {
 
   function startOver() {
     requestRef.current?.abort();
+    for (const controller of pageRequestsRef.current.values())
+      controller.abort();
+    pageRequestsRef.current.clear();
     setStatus('idle');
     setStage(0);
-    setHtml('');
+    setSitePages([]);
+    setSelectedPageId('');
     setError('');
     setActivePrompt('');
     setRefinement('');
@@ -373,6 +680,7 @@ export default function Home() {
     setDomainStatus('idle');
     setDomainError('');
     setTemplateId('');
+    setSiteCompletionDialogOpen(false);
   }
 
   function downloadSite() {
@@ -380,7 +688,9 @@ export default function Home() {
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = 'sleeksite-website.html';
+    anchor.download = selectedPage?.slug
+      ? `${selectedPage.slug.replaceAll('/', '-')}.html`
+      : 'index.html';
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -392,7 +702,7 @@ export default function Home() {
     window.setTimeout(() => setCopied(false), 1800);
   }
 
-  function openPublishOptions() {
+  function continueToPublish() {
     if (!siteSlug) setSiteSlug(createAddressSuggestion(activePrompt));
     setDomainError('');
     if (!account) {
@@ -402,6 +712,30 @@ export default function Home() {
       return;
     }
     setPublishDialogOpen(true);
+  }
+
+  function openPublishOptions() {
+    if (unfinishedPages.length) {
+      setSiteCompletionDialogOpen(true);
+      return;
+    }
+    continueToPublish();
+  }
+
+  function removeUnfinishedLinks() {
+    const unfinishedSlugs = new Set(
+      unfinishedPages.map((page) => page.slug).filter(Boolean),
+    );
+    setSitePages((current) =>
+      current
+        .filter((page) => page.status === 'ready')
+        .map((page) => ({
+          ...page,
+          html: removeLinksToPages(page.html, unfinishedSlugs),
+        })),
+    );
+    setSiteCompletionDialogOpen(false);
+    continueToPublish();
   }
 
   async function handleAccountSubmit(event: SyntheticEvent<HTMLFormElement>) {
@@ -446,7 +780,9 @@ export default function Home() {
   }
 
   async function publishSite() {
-    if (!html || publishStatus === 'publishing') return;
+    const readyPages = sitePages.filter((page) => page.status === 'ready');
+    const homePage = readyPages.find((page) => page.slug === '');
+    if (!homePage || publishStatus === 'publishing') return;
 
     setPublishStatus('publishing');
     setPublishError('');
@@ -464,7 +800,12 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          html,
+          html: homePage.html,
+          pages: readyPages.map(({ title, slug, html: pageHtml }) => ({
+            title,
+            slug,
+            html: pageHtml,
+          })),
           prompt: activePrompt,
           slug,
           customDomain: domain,
@@ -722,7 +1063,7 @@ export default function Home() {
             disabled={!html}
           >
             <Download />
-            <span className="desktop-label">Download</span>
+            <span className="desktop-label">Download page</span>
           </Button>
           <Button
             size="sm"
@@ -753,12 +1094,58 @@ export default function Home() {
       </header>
 
       <section className="studio-body">
+        <nav className="pages-rail" aria-label="Website pages">
+          <div className="pages-rail-heading">
+            <div>
+              <p className="eyebrow">Site map</p>
+              <strong>Pages</strong>
+            </div>
+            <span>{sitePages.length}</span>
+          </div>
+          <div className="pages-list">
+            {sitePages.map((page) => (
+              <button
+                type="button"
+                key={page.id}
+                className={page.id === selectedPage?.id ? 'active' : ''}
+                onClick={() => setSelectedPageId(page.id)}
+              >
+                <span className={`page-status ${page.status}`}>
+                  {page.status === 'building' ? <Spinner /> : <FileText />}
+                </span>
+                <span>
+                  <strong>{page.title}</strong>
+                  <small>{page.slug ? `/${page.slug}` : '/'}</small>
+                </span>
+                {page.status === 'ready' && <Check className="page-check" />}
+              </button>
+            ))}
+          </div>
+          {unfinishedPages.length > 0 && status === 'ready' && (
+            <button
+              type="button"
+              className="build-pages-button"
+              onClick={() => void generateAllSuggested()}
+            >
+              <Files />
+              <span>
+                <strong>Build all pages</strong>
+                <small>{unfinishedPages.length} remaining</small>
+              </span>
+            </button>
+          )}
+        </nav>
+
         <div className="preview-area">
           <div className="preview-toolbar">
             <Button variant="ghost" size="sm" onClick={startOver}>
               <ChevronLeft /> New site
             </Button>
-            <p title={activePrompt}>{activePrompt}</p>
+            <p title={selectedPage?.title || activePrompt}>
+              {selectedPage
+                ? `${selectedPage.title} · ${selectedPage.slug ? `/${selectedPage.slug}` : '/'}`
+                : activePrompt}
+            </p>
             <div className="viewport-toggle" aria-label="Preview size">
               <button
                 className={viewport === 'desktop' ? 'active' : ''}
@@ -781,10 +1168,13 @@ export default function Home() {
 
           <div className="preview-stage">
             <div className={`preview-frame ${viewport}`}>
-              {status === 'ready' && html ? (
+              {status === 'ready' &&
+              selectedPage?.status === 'ready' &&
+              html ? (
                 <iframe
+                  ref={iframeRef}
                   title="Generated website preview"
-                  srcDoc={html}
+                  srcDoc={createPreviewHtml(html)}
                   sandbox="allow-scripts allow-forms allow-modals allow-popups"
                 />
               ) : status === 'error' ? (
@@ -793,15 +1183,33 @@ export default function Home() {
                   <h2>The build paused</h2>
                   <p>{error}</p>
                   <Button
-                    onClick={() =>
-                      void buildSite(
-                        activePrompt,
-                        html || undefined,
-                        activeImages,
-                      )
-                    }
+                    onClick={() => void buildHome(activePrompt, activeImages)}
                   >
                     Try again
+                  </Button>
+                </div>
+              ) : status === 'ready' && selectedPage?.status === 'suggested' ? (
+                <div className="page-placeholder">
+                  <span>
+                    <FileText />
+                  </span>
+                  <p className="eyebrow">Next page</p>
+                  <h2>{selectedPage.title}</h2>
+                  <p>
+                    This page was found in your homepage navigation. Build it
+                    now with the same visual direction and site-wide navigation.
+                  </p>
+                  <Button onClick={() => void generatePage(selectedPage.id)}>
+                    <WandSparkles /> Generate this page
+                  </Button>
+                </div>
+              ) : status === 'ready' && selectedPage?.status === 'error' ? (
+                <div className="build-error" role="alert">
+                  <div className="error-icon">!</div>
+                  <h2>{selectedPage.title} paused</h2>
+                  <p>{selectedPage.error}</p>
+                  <Button onClick={() => void generatePage(selectedPage.id)}>
+                    Try this page again
                   </Button>
                 </div>
               ) : (
@@ -810,8 +1218,16 @@ export default function Home() {
                     <Spinner />
                   </div>
                   <p className="eyebrow">building with gpt-5.6 sol</p>
-                  <h2>Turning your idea into a website</h2>
-                  <p>The first complete version will appear here.</p>
+                  <h2>
+                    {status === 'building'
+                      ? 'Turning your idea into a website'
+                      : `Building ${selectedPage?.title || 'your page'}`}
+                  </h2>
+                  <p>
+                    {status === 'building'
+                      ? 'Your homepage will appear first.'
+                      : 'You can keep editing other finished pages while it works.'}
+                  </p>
                   <div className="skeleton-site" aria-hidden="true">
                     <span />
                     <span />
@@ -832,13 +1248,38 @@ export default function Home() {
               <p className="eyebrow">build brief</p>
               <h2>
                 {status === 'ready'
-                  ? 'Your site is ready'
+                  ? selectedPage?.status === 'ready'
+                    ? `Editing ${selectedPage.title}`
+                    : `Planning ${selectedPage?.title || 'your site'}`
                   : 'Making your first draft'}
               </h2>
             </div>
           </div>
 
           <blockquote>{activePrompt}</blockquote>
+
+          {status === 'ready' && sitePages.length > 1 && (
+            <section className="site-plan-card" aria-label="Website page plan">
+              <div>
+                <span>
+                  <Files />
+                </span>
+                <div>
+                  <strong>{sitePages.length}-page website</strong>
+                  <p>
+                    {unfinishedPages.length
+                      ? `${unfinishedPages.length} suggested ${unfinishedPages.length === 1 ? 'page is' : 'pages are'} ready to build.`
+                      : 'Every linked page is ready to edit and publish.'}
+                  </p>
+                </div>
+              </div>
+              {unfinishedPages.length > 0 && (
+                <Button size="sm" onClick={() => void generateAllSuggested()}>
+                  <WandSparkles /> Build remaining pages
+                </Button>
+              )}
+            </section>
+          )}
 
           {activeTemplate && (
             <section
@@ -902,7 +1343,7 @@ export default function Home() {
             })}
           </ol>
 
-          {status === 'ready' && (
+          {status === 'ready' && selectedPage?.status === 'ready' && (
             <>
               {publishedUrl && (
                 <div className="publish-card" aria-live="polite">
@@ -968,7 +1409,7 @@ export default function Home() {
                       {linkCopied ? 'Copied' : 'Copy link'}
                     </Button>
                     {publishStatus === 'idle' && (
-                      <Button size="sm" onClick={() => void publishSite()}>
+                      <Button size="sm" onClick={openPublishOptions}>
                         <Rocket /> Update site
                       </Button>
                     )}
@@ -991,7 +1432,9 @@ export default function Home() {
 
               <form className="refine-form" onSubmit={handleRefine}>
                 <div className="refine-heading">
-                  <label htmlFor="refinement">Refine this version</label>
+                  <label htmlFor="refinement">
+                    Refine {selectedPage.title}
+                  </label>
                   <label
                     className={`attach-control compact ${
                       uploadingTarget === 'refinement' ? 'uploading' : ''
@@ -1036,7 +1479,7 @@ export default function Home() {
                   id="refinement"
                   value={refinement}
                   onChange={(event) => setRefinement(event.target.value)}
-                  placeholder="Make the type larger and add a testimonials section..."
+                  placeholder={`Describe changes for ${selectedPage.title} only...`}
                 />
                 <Button
                   type="submit"
@@ -1053,12 +1496,52 @@ export default function Home() {
           <div className="panel-note">
             <Code2 />
             <p>
-              Publish here for a shareable link, or download the complete HTML
-              file.
+              Select a page to edit, copy, or download its complete HTML file.
             </p>
           </div>
         </aside>
       </section>
+
+      <Dialog
+        open={siteCompletionDialogOpen}
+        onOpenChange={setSiteCompletionDialogOpen}
+      >
+        <DialogContent className="completion-dialog">
+          <div className="completion-dialog-icon" aria-hidden="true">
+            <Files />
+          </div>
+          <DialogHeader>
+            <p className="eyebrow">Complete your site</p>
+            <DialogTitle>
+              {unfinishedPages.length}{' '}
+              {unfinishedPages.length === 1
+                ? 'linked page is'
+                : 'linked pages are'}{' '}
+              still unfinished
+            </DialogTitle>
+            <DialogDescription>
+              Build these pages with the same design system, or remove their
+              links before you publish so visitors never hit a dead end.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="completion-page-list">
+            {unfinishedPages.map((page) => (
+              <span key={page.id}>
+                <FileText /> {page.title}
+              </span>
+            ))}
+          </div>
+          <div className="completion-dialog-actions">
+            <Button variant="outline" onClick={removeUnfinishedLinks}>
+              Remove unfinished links
+            </Button>
+            <Button onClick={() => void generateAllSuggested()}>
+              <WandSparkles /> Build {unfinishedPages.length}{' '}
+              {unfinishedPages.length === 1 ? 'page' : 'pages'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={authDialogOpen}

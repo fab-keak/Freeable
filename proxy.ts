@@ -21,19 +21,19 @@ export function proxy(request: NextRequest) {
   if (!hostname || isBuilderHost(hostname)) return NextResponse.next();
 
   const url = request.nextUrl.clone();
-  const freeSiteDomain = process.env.NEXT_PUBLIC_FREE_SITE_DOMAIN
-    ?.trim()
-    .toLowerCase();
+  const requestedPath = url.pathname === '/' ? '' : url.pathname;
+  const freeSiteDomain =
+    process.env.NEXT_PUBLIC_FREE_SITE_DOMAIN?.trim().toLowerCase();
   if (freeSiteDomain && hostname.endsWith(`.${freeSiteDomain}`)) {
     const slug = hostname.slice(0, -(freeSiteDomain.length + 1));
     if (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
-      url.pathname = `/s/${slug}`;
+      url.pathname = `/s/${slug}${requestedPath}`;
       url.search = '';
       return NextResponse.rewrite(url);
     }
   }
 
-  url.pathname = `/site-domain/${encodeURIComponent(hostname)}`;
+  url.pathname = `/site-domain/${encodeURIComponent(hostname)}${requestedPath}`;
   url.search = '';
   return NextResponse.rewrite(url);
 }

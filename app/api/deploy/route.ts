@@ -5,6 +5,8 @@ import { getPublishedSitesDatabase } from '@/lib/published-sites';
 import { addProjectDomain } from '@/lib/vercel-domains';
 
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const pageSlugPattern =
+  /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/;
 const domainPattern =
   /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 
@@ -34,6 +36,31 @@ function getPublishedUrl(slug: string) {
   return freeSiteDomain ? `https://${slug}.${freeSiteDomain}` : `/s/${slug}`;
 }
 
+type PublishPage = { title: string; slug: string; html: string };
+
+function isCompleteHtml(html: string) {
+  return (
+    html.length >= 100 &&
+    html.length <= 200_000 &&
+    /<html|<!doctype/i.test(html) &&
+    /<\/html>\s*$/i.test(html)
+  );
+}
+
+function extractInternalLinks(html: string) {
+  const links = new Set<string>();
+  const pattern = /<a\b[^>]*\bhref\s*=\s*(['"])(.*?)\1/gi;
+  for (const match of html.matchAll(pattern)) {
+    const href = match[2];
+    if (!href.startsWith('/') || href.startsWith('//')) continue;
+    const path = href.split(/[?#]/)[0].replace(/^\/+|\/+$/g, '');
+    if (!path || /^(api|_next|s)(\/|$)/.test(path)) continue;
+    if (/\.[a-z0-9]{2,5}$/i.test(path)) continue;
+    links.add(path.toLowerCase());
+  }
+  return links;
+}
+
 export async function POST(request: Request) {
   const user = await getAuthenticatedUser(request).catch(() => null);
   if (!user) {
@@ -48,6 +75,7 @@ export async function POST(request: Request) {
     prompt?: unknown;
     slug?: unknown;
     customDomain?: unknown;
+    pages?: unknown;
   };
 
   try {
@@ -71,15 +99,65 @@ export async function POST(request: Request) {
           .replace(/^https?:\/\//, '')
           .replace(/\/$/, '')
       : '';
+  const rawPages = Array.isArray(body.pages) ? body.pages : [];
+  const pages: PublishPage[] = rawPages.length
+    ? rawPages.map((page) => {
+        const candidate =
+          page && typeof page === 'object'
+            ? (page as {
+                title?: unknown;
+                slug?: unknown;
+                html?: unknown;
+              })
+            : {};
+        return {
+          title:
+            typeof candidate.title === 'string'
+              ? candidate.title.trim().slice(0, 80)
+              : '',
+          slug:
+            typeof candidate.slug === 'string'
+              ? candidate.slug.trim().toLowerCase()
+              : '',
+          html: typeof candidate.html === 'string' ? candidate.html.trim() : '',
+        };
+      })
+    : [{ title: extractTitle(html), slug: '', html }];
 
-  if (
-    html.length < 100 ||
-    html.length > 200_000 ||
-    !/<html|<!doctype/i.test(html) ||
-    !/<\/html>\s*$/i.test(html)
-  ) {
+  const slugs = new Set(pages.map((page) => page.slug));
+  const invalidPages =
+    pages.length < 1 ||
+    pages.length > 8 ||
+    !slugs.has('') ||
+    slugs.size !== pages.length ||
+    pages.some(
+      (page) =>
+        !page.title ||
+        (page.slug !== '' && !pageSlugPattern.test(page.slug)) ||
+        !isCompleteHtml(page.html),
+    ) ||
+    pages.reduce((total, page) => total + page.html.length, 0) > 800_000;
+
+  if (!isCompleteHtml(html) || invalidPages) {
     return NextResponse.json(
       { error: 'This site is incomplete or too large to publish.' },
+      { status: 400 },
+    );
+  }
+
+  const missingPages = new Set<string>();
+  for (const page of pages) {
+    for (const link of extractInternalLinks(page.html)) {
+      if (!slugs.has(link)) missingPages.add(link);
+    }
+  }
+  if (missingPages.size) {
+    return NextResponse.json(
+      {
+        error:
+          'Build or remove every linked page before publishing your website.',
+        missingPages: [...missingPages],
+      },
       { status: 400 },
     );
   }
@@ -99,7 +177,9 @@ export async function POST(request: Request) {
   }
 
   const database = await getPublishedSitesDatabase();
-  const title = extractTitle(html);
+  const homePage = pages.find((page) => page.slug === '')!;
+  const title = extractTitle(homePage.html);
+  const pagesJson = JSON.stringify(pages);
   const now = Date.now();
 
   if (customDomain) {
@@ -121,7 +201,7 @@ export async function POST(request: Request) {
   if (requestedSlug) {
     const rows = await database`
       UPDATE published_sites
-      SET title = ${title}, html = ${html}, source_prompt = ${prompt},
+      SET title = ${title}, html = ${homePage.html}, pages_json = ${pagesJson}, source_prompt = ${prompt},
           custom_domain = ${customDomain || null},
           domain_status = ${customDomain ? 'pending_dns' : 'none'},
           updated_at = ${now}
@@ -146,9 +226,9 @@ export async function POST(request: Request) {
   try {
     await database`
       INSERT INTO published_sites
-        (id, slug, title, html, source_prompt, custom_domain, domain_status, user_id, created_at, updated_at)
+        (id, slug, title, html, pages_json, source_prompt, custom_domain, domain_status, user_id, created_at, updated_at)
       VALUES
-        (${crypto.randomUUID()}, ${slug}, ${title}, ${html}, ${prompt},
+        (${crypto.randomUUID()}, ${slug}, ${title}, ${homePage.html}, ${pagesJson}, ${prompt},
          ${customDomain || null}, ${customDomain ? 'pending_dns' : 'none'}, ${user.id},
          ${now}, ${now})
     `;

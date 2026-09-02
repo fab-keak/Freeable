@@ -19,7 +19,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 const systemPrompt = `You are an expert product designer and front-end engineer inside an AI website builder.
-Create a complete, polished, production-quality single-page website from the user's brief.
+Create a complete, polished, production-quality page from the user's brief.
 
 Return only one self-contained HTML document beginning with <!doctype html>. Never use markdown fences or add commentary.
 
@@ -30,6 +30,7 @@ Requirements:
 - Follow the selected design system closely while adapting its composition to the user's specific brief.
 - Write specific, convincing content instead of lorem ipsum or vague placeholders.
 - Make interactive elements work with small, dependency-free JavaScript when useful.
+- Use clean root-relative links for meaningful pages (for example /about, /services, /contact). Keep on-page links as #anchors. A first homepage should link to only 2–6 essential pages and never invent links that the website does not need.
 - When uploaded images are supplied, understand them visually and use the provided Vercel Blob URLs in the HTML when the brief calls for those images.
 - For any other imagery, use only public HTTPS image URLs. The page must still look good if images fail.
 - Do not load JavaScript frameworks or require a build step.
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
     previousHtml?: unknown;
     images?: unknown;
     templateId?: unknown;
+    pageContext?: unknown;
   };
 
   try {
@@ -60,6 +62,57 @@ export async function POST(request: Request) {
       : '';
   const preferredTemplateId =
     typeof body.templateId === 'string' ? body.templateId : '';
+  const rawPageContext =
+    body.pageContext && typeof body.pageContext === 'object'
+      ? (body.pageContext as {
+          title?: unknown;
+          slug?: unknown;
+          sitePages?: unknown;
+          referenceHtml?: unknown;
+        })
+      : null;
+  const pageTitle =
+    typeof rawPageContext?.title === 'string'
+      ? rawPageContext.title.trim().slice(0, 80)
+      : '';
+  const pageSlug =
+    typeof rawPageContext?.slug === 'string'
+      ? rawPageContext.slug.trim().toLowerCase().slice(0, 120)
+      : '';
+  const sitePages = Array.isArray(rawPageContext?.sitePages)
+    ? rawPageContext.sitePages
+        .filter((page): page is { title: string; slug: string } =>
+          Boolean(
+            page &&
+            typeof page === 'object' &&
+            typeof (page as { title?: unknown }).title === 'string' &&
+            typeof (page as { slug?: unknown }).slug === 'string',
+          ),
+        )
+        .slice(0, 8)
+        .map((page) => ({
+          title: page.title.trim().slice(0, 80),
+          slug: page.slug.trim().toLowerCase().slice(0, 120),
+        }))
+    : [];
+  const referenceHtml =
+    typeof rawPageContext?.referenceHtml === 'string'
+      ? rawPageContext.referenceHtml.slice(0, 200_000)
+      : '';
+
+  if (
+    rawPageContext &&
+    (!pageTitle ||
+      !pageSlug ||
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/.test(
+        pageSlug,
+      ))
+  ) {
+    return NextResponse.json(
+      { error: 'The requested page was not valid.' },
+      { status: 400 },
+    );
+  }
 
   if (prompt.length < 12 || prompt.length > 4_000) {
     return NextResponse.json(
@@ -174,14 +227,21 @@ export async function POST(request: Request) {
 
   const designTemplate = selectDesignTemplate(
     prompt,
-    previousHtml,
+    previousHtml || referenceHtml,
     preferredTemplateId,
   );
   const templateGuide = formatTemplatePrompt(designTemplate);
 
+  const siteMap = sitePages.length
+    ? sitePages
+        .map(({ title, slug }) => `- ${title}: ${slug ? `/${slug}` : '/'}`)
+        .join('\n')
+    : '';
   const task = previousHtml
-    ? `Revise the existing website according to this instruction: ${prompt}${attachmentGuide}\n\nExisting website:\n${previousHtml}`
-    : `${prompt}${attachmentGuide}`;
+    ? `Revise this specific page according to the instruction: ${prompt}${attachmentGuide}\n\nKeep the page's role, working navigation, and established visual system intact unless the instruction says otherwise.\n\nExisting page:\n${previousHtml}`
+    : rawPageContext
+      ? `Create the ${pageTitle} page at /${pageSlug} for this website. The original site brief is: ${prompt}${attachmentGuide}\n\nMake this page useful and distinct from the homepage. Match the homepage's brand, typography, colors, header, navigation, and footer. Link consistently to every page in this site map:\n${siteMap}\n\nHomepage visual reference:\n${referenceHtml}`
+      : `${prompt}${attachmentGuide}\n\nBuild the homepage first. Use root-relative links for 2–6 genuinely useful supporting pages so the builder can offer to create them next.`;
 
   const userContent = promptImages.length
     ? [
