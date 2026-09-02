@@ -59,6 +59,9 @@ type AuthMode = 'signup' | 'signin';
 type AuthIntent = 'account' | 'publish';
 type AuthStatus = 'idle' | 'submitting';
 type AccountUser = { name: string; email: string };
+type XTrackingWindow = Window & {
+  twq?: (...args: unknown[]) => void;
+};
 type PageStatus = 'suggested' | 'building' | 'ready' | 'error';
 type SitePage = {
   id: string;
@@ -106,6 +109,18 @@ function createAddressSuggestion(value: string) {
       .replace(/^-|-$/g, '')
       .slice(0, 36) || 'my-website'
   );
+}
+
+function trackWebsiteGenerationStarted(attempt = 0) {
+  const twq = (window as XTrackingWindow).twq;
+  if (typeof twq === 'function') {
+    twq('event', 'tw-ofrz1-rewrt', {});
+    return;
+  }
+
+  if (attempt < 20) {
+    window.setTimeout(() => trackWebsiteGenerationStarted(attempt + 1), 250);
+  }
 }
 
 function cleanGeneratedHtml(value: string) {
@@ -574,6 +589,7 @@ export default function Home() {
       );
       return;
     }
+    trackWebsiteGenerationStarted();
     void buildHome(instruction, promptImages);
   }
 
