@@ -22,20 +22,20 @@ const ibmPlexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.SITE_URL ?? 'http://localhost:3000'),
-  title: 'Build a beautiful website for free — SleekSite',
+  title: 'Build a beautiful website for free — Freeable',
   description:
     'Describe a website and turn the idea into a working first draft.',
   openGraph: {
     title: 'Build a beautiful website for free',
     description: 'Turn a plain-language idea into a complete website with AI.',
-    siteName: 'SleekSite',
+    siteName: 'Freeable',
     type: 'website',
     images: [
       {
         url: '/og.png',
         width: 1200,
         height: 630,
-        alt: 'SleekSite AI website builder',
+        alt: 'Freeable AI website builder',
       },
     ],
   },

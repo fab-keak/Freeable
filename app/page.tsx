@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { SleekSiteLogo } from '@/components/sleeksite-logo';
+import { FreeableLogo } from '@/components/sleeksite-logo';
 import {
   Dialog,
   DialogContent,
@@ -918,9 +918,9 @@ export default function Home() {
         <header className="landing-header">
           <div className="landing-brand">
             <span className="landing-brand-mark" aria-hidden="true">
-              <SleekSiteLogo />
+              <FreeableLogo />
             </span>
-            <strong>SleekSite</strong>
+            <strong>Freeable</strong>
           </div>
           <span className="landing-model">
             <i /> GPT-5.6 Sol
@@ -936,7 +936,7 @@ export default function Home() {
               <span>website for free.</span>
             </h1>
             <p className="landing-copy">
-              Tell SleekSite what you want. Add visual references if you have
+              Tell Freeable what you want. Add visual references if you have
               them, then let AI design, code, and prepare the site for launch.
             </p>
           </div>
@@ -1030,10 +1030,10 @@ export default function Home() {
             onClick={startOver}
             aria-label="Start a new site"
           >
-            <SleekSiteLogo />
+            <FreeableLogo />
           </button>
           <div>
-            <strong>SleekSite</strong>
+            <strong>Freeable</strong>
             <span>AI site builder</span>
           </div>
         </div>
@@ -1354,7 +1354,7 @@ export default function Home() {
                       <Link2 />
                     </span>
                     <div>
-                      <strong>Live on SleekSite</strong>
+                      <strong>Live on Freeable</strong>
                       <p>
                         {publishStatus === 'idle'
                           ? 'You have unpublished changes'
@@ -1557,7 +1557,7 @@ export default function Home() {
       >
         <DialogContent className="auth-dialog">
           <div className="auth-dialog-brand" aria-hidden="true">
-            <SleekSiteLogo />
+            <FreeableLogo />
           </div>
           <DialogHeader>
             <p className="eyebrow">Save & publish</p>
@@ -1690,7 +1690,7 @@ export default function Home() {
             <p className="eyebrow">Publish your website</p>
             <DialogTitle>Choose your web address</DialogTitle>
             <DialogDescription>
-              Go live instantly with a free SleekSite address, or connect a
+              Go live instantly with a free Freeable address, or connect a
               domain you own.
             </DialogDescription>
           </DialogHeader>
@@ -1708,7 +1708,7 @@ export default function Home() {
               <span>
                 <Link2 />
               </span>
-              <strong>Free SleekSite address</strong>
+              <strong>Free Freeable address</strong>
               <small>Included · live immediately</small>
               {publishMode === 'free' && <Check />}
             </button>
