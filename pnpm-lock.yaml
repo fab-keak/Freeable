@@ -34,7 +34,7 @@ importers:
         version: 4.1.0
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@cloudflare/workers-types@4.20260515.1)(@neondatabase/serverless@1.1.0)
+        version: 0.45.2(@cloudflare/workers-types@4.20260515.1)(@neondatabase/serverless@1.1.0)(postgres@3.4.9)
       embla-carousel-react:
         specifier: 8.5.2
         version: 8.5.2(react@19.2.6)
@@ -47,6 +47,9 @@ importers:
       next:
         specifier: ^16.3.4
         version: 16.3.4(@babel/core@7.29.7(supports-color@10.2.2))(@types/node@22.19.19)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
       react:
         specifier: 19.2.6
         version: 19.2.6
@@ -2833,6 +2836,10 @@ packages:
     resolution: {integrity: sha512-u82N74LFzG8ca+dD8puPnplTXoGH4fTPpVGuIbt36G3qvNlkvfD0lEAZSxaly3KX8TS/L1A1gsCEmvKmBcVbkQ==}
     engines: {node: ^10 || ^12 || >=14}
 
+  postgres@3.4.9:
+    resolution: {integrity: sha512-GD3qdB0x1z9xgFI6cdRD6xu2Sp2WCOEoe3mtnyB5Ee0XrrL5Pe+e4CCnJrRMnL1zYtRDZmQQVbvOttLnKDLnaw==}
+    engines: {node: '>=12'}
+
   powershell-utils@0.1.0:
     resolution: {integrity: sha512-dM0jVuXJPsDN6DvRpea484tCUaMiXWjuCn++HGTqUWzGDjv5tZkEZldAJ/UMlqRYGFrD/etByo4/xOuC/snX2A==}
     engines: {node: '>=20'}
@@ -4716,10 +4723,11 @@ snapshots:
       esbuild: 0.25.12
       tsx: 4.23.13
 
-  drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260515.1)(@neondatabase/serverless@1.1.0):
+  drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260515.1)(@neondatabase/serverless@1.1.0)(postgres@3.4.9):
     optionalDependencies:
       '@cloudflare/workers-types': 4.20260515.1
       '@neondatabase/serverless': 1.1.0
+      postgres: 3.4.9
 
   dunder-proto@1.0.1:
     dependencies:
@@ -5503,6 +5511,8 @@ snapshots:
       nanoid: 3.3.18
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  postgres@3.4.9: {}
 
   powershell-utils@0.1.0: {}
 
