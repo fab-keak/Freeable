@@ -17,10 +17,13 @@ import {
   Files,
   Globe2,
   ImagePlus,
+  LayoutGrid,
   Link2,
   LockKeyhole,
+  LogOut,
   Monitor,
   Palette,
+  Plus,
   Rocket,
   Smartphone,
   Sparkles,
@@ -66,6 +69,18 @@ type AuthMode = 'signup' | 'signin';
 type AuthIntent = 'account' | 'publish';
 type AuthStatus = 'idle' | 'submitting';
 type AccountUser = { name: string; email: string };
+type DashboardStatus = 'idle' | 'loading' | 'ready' | 'error';
+type DashboardSite = {
+  slug: string;
+  title: string;
+  url: string;
+  freeUrl: string;
+  customDomain: string | null;
+  domainStatus: string;
+  pageCount: number;
+  createdAt: number;
+  updatedAt: number;
+};
 type XTrackingWindow = Window & {
   twq?: (...args: unknown[]) => void;
 };
@@ -103,6 +118,17 @@ function getFreeSiteUrl(slug: string) {
   return freeSiteDomain
     ? `https://${slug}.${freeSiteDomain}`
     : `${freeSiteOrigin}/s/${slug}`;
+}
+
+function formatDashboardDate(timestamp: number) {
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    year:
+      new Date(timestamp).getFullYear() === new Date().getFullYear()
+        ? undefined
+        : 'numeric',
+  }).format(new Date(timestamp));
 }
 
 function createAddressSuggestion(value: string) {
@@ -247,6 +273,12 @@ export default function Home() {
   const [copiedDnsField, setCopiedDnsField] = useState<CopiedDnsField>(null);
   const [templateId, setTemplateId] = useState('');
   const [account, setAccount] = useState<AccountUser | null>(null);
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [dashboardSites, setDashboardSites] = useState<DashboardSite[]>([]);
+  const [dashboardStatus, setDashboardStatus] =
+    useState<DashboardStatus>('idle');
+  const [dashboardError, setDashboardError] = useState('');
+  const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signup');
   const [authIntent, setAuthIntent] = useState<AuthIntent>('account');
@@ -275,11 +307,45 @@ export default function Home() {
       .then(async (response) => {
         if (!response.ok) return;
         const data = (await response.json()) as { user?: AccountUser | null };
-        setAccount(data.user ?? null);
+        const user = data.user ?? null;
+        setAccount(user);
+        if (user) {
+          setDashboardStatus('loading');
+          setShowDashboard(true);
+        }
       })
       .catch(() => undefined);
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (!account || !showDashboard) return;
+    const controller = new AbortController();
+    void fetch('/api/sites', {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const data = (await response.json()) as {
+          error?: string;
+          sites?: DashboardSite[];
+        };
+        if (!response.ok)
+          throw new Error(data.error || 'Your websites could not be loaded.');
+        setDashboardSites(data.sites || []);
+        setDashboardStatus('ready');
+      })
+      .catch((dashboardFailure) => {
+        if (controller.signal.aborted) return;
+        setDashboardError(
+          dashboardFailure instanceof Error
+            ? dashboardFailure.message
+            : 'Your websites could not be loaded.',
+        );
+        setDashboardStatus('error');
+      });
+    return () => controller.abort();
+  }, [account, showDashboard, dashboardRefreshKey]);
 
   useEffect(() => {
     if (status !== 'building') return;
@@ -715,6 +781,8 @@ export default function Home() {
     setCustomDomain('');
     setDomainStatus('idle');
     setDomainError('');
+    setDnsRecord(null);
+    setCopiedDnsField(null);
     setTemplateId('');
     setSiteCompletionDialogOpen(false);
   }
@@ -757,6 +825,26 @@ export default function Home() {
     setAuthError('');
     setAuthPassword('');
     setAuthDialogOpen(true);
+  }
+
+  function createAnotherWebsite() {
+    startOver();
+    setPrompt('');
+    setShowDashboard(false);
+  }
+
+  function retryDashboard() {
+    setDashboardError('');
+    setDashboardStatus('loading');
+    setDashboardRefreshKey((current) => current + 1);
+  }
+
+  async function signOut() {
+    await fetch('/api/auth', { method: 'DELETE' }).catch(() => undefined);
+    setAccount(null);
+    setShowDashboard(false);
+    setDashboardSites([]);
+    setDashboardStatus('idle');
   }
 
   function openPublishOptions() {
@@ -814,6 +902,10 @@ export default function Home() {
       if (authIntent === 'publish') {
         if (!siteSlug) setSiteSlug(createAddressSuggestion(activePrompt));
         setPublishDialogOpen(true);
+      } else {
+        setDashboardError('');
+        setDashboardStatus('loading');
+        setShowDashboard(true);
       }
     } catch (accountError) {
       setAuthError(
@@ -1131,6 +1223,215 @@ export default function Home() {
     );
   }
 
+  if (status === 'idle' && account && showDashboard) {
+    return (
+      <main className="dashboard-shell">
+        <header className="dashboard-header">
+          <button
+            type="button"
+            className="landing-brand dashboard-brand"
+            onClick={() => setShowDashboard(true)}
+            aria-label="Freeable dashboard"
+          >
+            <span className="landing-brand-mark" aria-hidden="true">
+              <FreeableLogo />
+            </span>
+            <strong>Freeable</strong>
+          </button>
+          <div className="dashboard-account-actions">
+            <div className="landing-account" title={account.email}>
+              <UserRound />
+              <span>{account.name}</span>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => void signOut()}>
+              <LogOut /> Sign out
+            </Button>
+          </div>
+        </header>
+
+        <div className="dashboard-content">
+          <section className="dashboard-welcome">
+            <div className="dashboard-welcome-copy">
+              <p className="eyebrow">Your Freeable workspace</p>
+              <h1>
+                Welcome back,
+                <br />
+                <span>{account.name.split(/\s+/)[0]}.</span>
+              </h1>
+              <p>
+                See everything you’ve published and turn your next idea into a
+                live website.
+              </p>
+            </div>
+
+            <form className="dashboard-prompt" onSubmit={handleSubmit}>
+              <div className="dashboard-prompt-heading">
+                <span>
+                  <Sparkles />
+                </span>
+                <div>
+                  <strong>What should we build next?</strong>
+                  <small>Describe it in a sentence or two.</small>
+                </div>
+              </div>
+              <label className="sr-only" htmlFor="dashboard-site-prompt">
+                Describe your next website
+              </label>
+              <Textarea
+                id="dashboard-site-prompt"
+                value={prompt}
+                onChange={(event) => {
+                  setPrompt(event.target.value);
+                  if (error) setError('');
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    event.key !== 'Enter' ||
+                    event.shiftKey ||
+                    event.nativeEvent.isComposing
+                  )
+                    return;
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }}
+                placeholder="A modern website for a neighborhood bakery..."
+              />
+              {renderAttachments('prompt', promptImages)}
+              <div className="dashboard-prompt-footer">
+                <label
+                  className={`attach-control ${uploadingTarget === 'prompt' ? 'uploading' : ''}`}
+                >
+                  {uploadingTarget === 'prompt' ? <Spinner /> : <ImagePlus />}
+                  <span>
+                    {uploadingTarget === 'prompt' ? 'Uploading' : 'Add images'}
+                  </span>
+                  <input
+                    className="sr-only"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                    multiple
+                    disabled={
+                      uploadingTarget !== null ||
+                      promptImages.length >= maxAttachedImages
+                    }
+                    onChange={(event) => {
+                      void uploadImages(event.currentTarget.files, 'prompt');
+                      event.currentTarget.value = '';
+                    }}
+                  />
+                </label>
+                <span
+                  className={error || uploadError ? 'prompt-error' : ''}
+                  aria-live="polite"
+                >
+                  {error || uploadError || `Up to ${maxAttachedImages} images`}
+                </span>
+                <Button
+                  type="submit"
+                  disabled={!prompt.trim() || uploadingTarget === 'prompt'}
+                >
+                  Generate website <ArrowUp />
+                </Button>
+              </div>
+            </form>
+          </section>
+
+          <section className="dashboard-sites" aria-labelledby="sites-heading">
+            <div className="dashboard-sites-heading">
+              <div>
+                <p className="eyebrow">Published websites</p>
+                <h2 id="sites-heading">Your websites</h2>
+              </div>
+              <span>
+                {dashboardStatus === 'ready' ? dashboardSites.length : '—'}{' '}
+                {dashboardSites.length === 1 ? 'website' : 'websites'}
+              </span>
+            </div>
+
+            {dashboardStatus === 'loading' && (
+              <div className="dashboard-loading" aria-live="polite">
+                <Spinner /> Loading your websites…
+              </div>
+            )}
+
+            {dashboardStatus === 'error' && (
+              <div className="dashboard-error" role="alert">
+                <p>{dashboardError}</p>
+                <Button variant="outline" size="sm" onClick={retryDashboard}>
+                  Try again
+                </Button>
+              </div>
+            )}
+
+            {dashboardStatus === 'ready' && (
+              <div className="website-grid">
+                <button
+                  type="button"
+                  className="new-website-card"
+                  onClick={createAnotherWebsite}
+                >
+                  <span>
+                    <Plus />
+                  </span>
+                  <strong>Create a new website</strong>
+                  <small>Start with a fresh prompt</small>
+                </button>
+
+                {dashboardSites.map((site) => (
+                  <article className="website-card" key={site.slug}>
+                    <div className="website-card-top">
+                      <span>
+                        <LayoutGrid />
+                      </span>
+                      <small
+                        className={
+                          site.customDomain &&
+                          site.domainStatus !== 'dns_verified'
+                            ? 'needs-domain'
+                            : ''
+                        }
+                      >
+                        {site.customDomain &&
+                        site.domainStatus !== 'dns_verified'
+                          ? 'DNS setup needed'
+                          : 'Live'}
+                      </small>
+                    </div>
+                    <div className="website-card-copy">
+                      <h3>{site.title}</h3>
+                      <p>{new URL(site.url).host}</p>
+                    </div>
+                    <div className="website-card-meta">
+                      <span>
+                        <FileText /> {site.pageCount}{' '}
+                        {site.pageCount === 1 ? 'page' : 'pages'}
+                      </span>
+                      <span>Updated {formatDashboardDate(site.updatedAt)}</span>
+                    </div>
+                    <a href={site.url} target="_blank" rel="noreferrer">
+                      View website <ExternalLink />
+                    </a>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <footer className="dashboard-footer">
+          <span>Free website builder by</span>{' '}
+          <a
+            href="https://cheaperinference.com"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Cheaper Inference
+          </a>
+        </footer>
+      </main>
+    );
+  }
+
   if (status === 'idle') {
     return (
       <>
@@ -1147,10 +1448,19 @@ export default function Home() {
                 <i /> GPT-5.6 Sol
               </span>
               {account ? (
-                <div className="landing-account" title={account.email}>
+                <button
+                  type="button"
+                  className="landing-account"
+                  title={account.email}
+                  onClick={() => {
+                    setDashboardError('');
+                    setDashboardStatus('loading');
+                    setShowDashboard(true);
+                  }}
+                >
                   <UserRound />
                   <span>{account.name}</span>
-                </div>
+                </button>
               ) : (
                 <>
                   <Button
