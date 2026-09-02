@@ -588,7 +588,7 @@ body {
   display: grid;
   min-height: calc(100svh - 112px);
   flex: 1;
-  place-items: center;
+  place-items: start center;
   overflow: auto;
   padding: clamp(16px, 2.8vw, 34px);
   background:
