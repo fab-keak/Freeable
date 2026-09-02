@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getAuthenticatedUser } from '@/lib/auth';
 import { getPublishedSitesDatabase } from '@/lib/published-sites';
-import { domainTarget } from '@/lib/vercel-domains';
+import { getProjectDomainConfiguration } from '@/lib/vercel-domains';
 
 const domainPattern =
   /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
@@ -59,25 +59,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const dnsResponse = await fetch(
-      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=CNAME`,
-      {
-        headers: { Accept: 'application/dns-json' },
-        signal: AbortSignal.timeout(8_000),
-      },
-    );
-    if (!dnsResponse.ok) throw new Error('dns-unavailable');
-
-    const dns = (await dnsResponse.json()) as {
-      Answer?: Array<{ data?: string; type?: number }>;
-    };
-    const connected = Boolean(
-      dns.Answer?.some(
-        (answer) =>
-          answer.type === 5 &&
-          answer.data?.replace(/\.$/, '').toLowerCase() === domainTarget,
-      ),
-    );
+    const configuration = await getProjectDomainConfiguration(domain);
+    const connected = configuration.connected;
 
     await database`
       UPDATE published_sites
@@ -86,7 +69,11 @@ export async function POST(request: Request) {
       WHERE slug = ${slug} AND custom_domain = ${domain} AND user_id = ${user.id}
     `;
 
-    return NextResponse.json({ connected, domain, target: domainTarget });
+    return NextResponse.json({
+      connected,
+      domain,
+      dnsRecord: configuration.record,
+    });
   } catch {
     return NextResponse.json(
       { error: 'DNS could not be checked right now. Please try again.' },

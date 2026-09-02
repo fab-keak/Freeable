@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getAuthenticatedUser } from '@/lib/auth';
 import { getPublishedSitesDatabase } from '@/lib/published-sites';
-import { addProjectDomain } from '@/lib/vercel-domains';
+import { addProjectDomain, type DomainDnsRecord } from '@/lib/vercel-domains';
 
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const pageSlugPattern =
@@ -181,10 +181,12 @@ export async function POST(request: Request) {
   const title = extractTitle(homePage.html);
   const pagesJson = JSON.stringify(pages);
   const now = Date.now();
+  let dnsRecord: DomainDnsRecord | null = null;
 
   if (customDomain) {
     try {
-      await addProjectDomain(customDomain);
+      const configuration = await addProjectDomain(customDomain);
+      dnsRecord = configuration.record;
     } catch (error) {
       return NextResponse.json(
         {
@@ -218,6 +220,7 @@ export async function POST(request: Request) {
         updated: true,
         customDomain: customDomain || null,
         domainStatus: customDomain ? 'pending_dns' : 'none',
+        dnsRecord,
       });
     }
   }
@@ -246,5 +249,6 @@ export async function POST(request: Request) {
     updated: false,
     customDomain: customDomain || null,
     domainStatus: customDomain ? 'pending_dns' : 'none',
+    dnsRecord,
   });
 }

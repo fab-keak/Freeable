@@ -53,6 +53,13 @@ type DomainStatus =
   | 'checking'
   | 'dns_verified'
   | 'error';
+type DomainDnsRecord = {
+  type: 'A' | 'CNAME';
+  name: string;
+  value: string;
+  ttl: 'Auto';
+};
+type CopiedDnsField = 'name' | 'value' | null;
 type UploadTarget = 'prompt' | 'refinement';
 type PromptImage = { id: string; name: string; path: string };
 type AuthMode = 'signup' | 'signin';
@@ -87,8 +94,6 @@ const imageExtensions: Record<string, string> = {
   'image/gif': 'gif',
   'image/avif': 'avif',
 };
-const domainTarget =
-  process.env.NEXT_PUBLIC_DOMAIN_TARGET || 'cname.vercel-dns.com';
 const freeSiteDomain = process.env.NEXT_PUBLIC_FREE_SITE_DOMAIN || '';
 const freeSiteOrigin = (
   process.env.NEXT_PUBLIC_SITE_ORIGIN || 'https://www.freeable.ai'
@@ -238,6 +243,8 @@ export default function Home() {
   const [customDomain, setCustomDomain] = useState('');
   const [domainStatus, setDomainStatus] = useState<DomainStatus>('idle');
   const [domainError, setDomainError] = useState('');
+  const [dnsRecord, setDnsRecord] = useState<DomainDnsRecord | null>(null);
+  const [copiedDnsField, setCopiedDnsField] = useState<CopiedDnsField>(null);
   const [templateId, setTemplateId] = useState('');
   const [account, setAccount] = useState<AccountUser | null>(null);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
@@ -854,6 +861,7 @@ export default function Home() {
       const data = (await response.json()) as {
         customDomain?: string | null;
         domainStatus?: DomainStatus;
+        dnsRecord?: DomainDnsRecord | null;
         error?: string;
         path?: string;
         url?: string;
@@ -878,6 +886,7 @@ export default function Home() {
       );
       setSiteSlug(data.path.split('/').pop() || slug || 'my-website');
       setDomainStatus(data.customDomain ? 'pending_dns' : 'idle');
+      setDnsRecord(data.dnsRecord || null);
       setPublishStatus('published');
       setPublishDialogOpen(false);
     } catch (publishFailure) {
@@ -904,14 +913,16 @@ export default function Home() {
       });
       const data = (await response.json()) as {
         connected?: boolean;
+        dnsRecord?: DomainDnsRecord;
         error?: string;
       };
       if (!response.ok)
         throw new Error(data.error || 'The DNS record could not be checked.');
       setDomainStatus(data.connected ? 'dns_verified' : 'pending_dns');
+      if (data.dnsRecord) setDnsRecord(data.dnsRecord);
       if (!data.connected) {
         setDomainError(
-          'The CNAME record is not visible yet. DNS changes can take a few minutes.',
+          'We cannot see the DNS change yet. It often appears within minutes, but can take up to 48 hours.',
         );
       }
     } catch (domainFailure) {
@@ -936,6 +947,13 @@ export default function Home() {
     await navigator.clipboard.writeText(getFreeSiteUrl(siteSlug));
     setAddressCopied(true);
     window.setTimeout(() => setAddressCopied(false), 1800);
+  }
+
+  async function copyDnsField(field: Exclude<CopiedDnsField, null>) {
+    if (!dnsRecord) return;
+    await navigator.clipboard.writeText(dnsRecord[field]);
+    setCopiedDnsField(field);
+    window.setTimeout(() => setCopiedDnsField(null), 1800);
   }
 
   function renderAttachments(target: UploadTarget, images: PromptImage[]) {
@@ -1645,12 +1663,75 @@ export default function Home() {
                             </span>
                           </div>
                         </div>
-                        <div className="dns-record">
-                          <span>CNAME</span>
-                          <code>{customDomain}</code>
-                          <span>points to</span>
-                          <code>{domainTarget}</code>
-                        </div>
+                        {dnsRecord && domainStatus !== 'dns_verified' && (
+                          <div className="dns-instructions">
+                            <div>
+                              <strong>Add this DNS record</strong>
+                              <span>
+                                In the DNS settings where your domain is
+                                managed.
+                              </span>
+                            </div>
+                            <dl className="dns-record-grid">
+                              <div>
+                                <dt>Type</dt>
+                                <dd>{dnsRecord.type}</dd>
+                              </div>
+                              <div>
+                                <dt>Name / Host</dt>
+                                <dd>
+                                  <code>{dnsRecord.name}</code>
+                                  <button
+                                    type="button"
+                                    onClick={() => void copyDnsField('name')}
+                                    aria-label="Copy DNS record name"
+                                  >
+                                    {copiedDnsField === 'name' ? (
+                                      <Check />
+                                    ) : (
+                                      <Copy />
+                                    )}
+                                  </button>
+                                </dd>
+                              </div>
+                              <div>
+                                <dt>Value</dt>
+                                <dd>
+                                  <code>{dnsRecord.value}</code>
+                                  <button
+                                    type="button"
+                                    onClick={() => void copyDnsField('value')}
+                                    aria-label="Copy DNS record value"
+                                  >
+                                    {copiedDnsField === 'value' ? (
+                                      <Check />
+                                    ) : (
+                                      <Copy />
+                                    )}
+                                  </button>
+                                </dd>
+                              </div>
+                              <div>
+                                <dt>TTL</dt>
+                                <dd>{dnsRecord.ttl}</dd>
+                              </div>
+                            </dl>
+                            <ol className="dns-steps">
+                              <li>
+                                Remove any existing A, AAAA, or CNAME record
+                                using the same Name / Host.
+                              </li>
+                              <li>
+                                Add the record above and save your changes.
+                              </li>
+                              <li>Return here and select Check connection.</li>
+                            </ol>
+                            <p className="dns-timing">
+                              DNS changes often appear within minutes, but can
+                              take up to 48 hours.
+                            </p>
+                          </div>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
@@ -1914,8 +1995,9 @@ export default function Home() {
               <div className="domain-setup-note">
                 <Globe2 />
                 <p>
-                  After publishing, add one CNAME record pointing to{' '}
-                  <code>{domainTarget}</code>.
+                  Publish first, then we’ll inspect this domain and show the
+                  exact DNS record to add. Root domains and subdomains use
+                  different records.
                 </p>
               </div>
             </div>

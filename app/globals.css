@@ -2153,7 +2153,7 @@ body {
 }
 
 .domain-setup-note code,
-.dns-record code {
+.dns-record-grid code {
   color: #d8ff00;
   font-family: var(--font-ibm-plex-mono), monospace;
 }
@@ -2215,21 +2215,110 @@ body {
   color: #d8ff00;
 }
 
-.dns-record {
+.dns-instructions {
   display: grid;
-  gap: 3px;
-  padding: 9px;
-  border-radius: 4px;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgb(242 246 244 / 10%);
+  border-radius: 6px;
   color: #7e8986;
   background: #071013;
-  font-size: 8px;
+  font-size: 9px;
 }
 
-.dns-record code {
+.dns-instructions > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.dns-instructions > div:first-child strong {
+  color: #f2f6f4;
+  font-size: 10px;
+}
+
+.dns-record-grid {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid rgb(242 246 244 / 11%);
+  border-radius: 5px;
+}
+
+.dns-record-grid > div {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  min-width: 0;
+  border-bottom: 1px solid rgb(242 246 244 / 9%);
+}
+
+.dns-record-grid > div:last-child {
+  border-bottom: 0;
+}
+
+.dns-record-grid dt {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-right: 1px solid rgb(242 246 244 / 9%);
+  color: #7e8986;
+  background: rgb(242 246 244 / 3%);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dns-record-grid dd {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  margin: 0;
+  padding: 7px 8px;
+  color: #f2f6f4;
+}
+
+.dns-record-grid code {
   overflow: hidden;
   font-size: 9px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.dns-record-grid button {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgb(242 246 244 / 13%);
+  border-radius: 4px;
+  color: #929c99;
+  background: rgb(242 246 244 / 3%);
+  cursor: pointer;
+}
+
+.dns-record-grid button:hover {
+  border-color: rgb(216 255 0 / 42%);
+  color: #d8ff00;
+}
+
+.dns-record-grid button svg {
+  width: 11px;
+  height: 11px;
+}
+
+.dns-steps {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 17px;
+  line-height: 1.45;
+}
+
+.dns-timing {
+  padding-top: 8px;
+  border-top: 1px solid rgb(242 246 244 / 8%);
+  line-height: 1.45;
 }
 
 .domain-connection > [data-slot='button'] {
