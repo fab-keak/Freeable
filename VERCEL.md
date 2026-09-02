@@ -1,6 +1,6 @@
-# Deploying SleekSite on Vercel
+# Deploying Freeable on Vercel
 
-SleekSite runs as a standard Next.js application and uses Neon Postgres for
+Freeable runs as a standard Next.js application and uses Supabase Postgres for
 published websites and Vercel Blob for prompt images.
 
 ## 1. Create the Vercel project
@@ -17,7 +17,7 @@ In the Vercel project dashboard:
 2. Create a public Vercel Blob store. Confirm that it creates a
    `BLOB_READ_WRITE_TOKEN` environment variable.
 
-The `published_sites` table is created automatically the first time SleekSite
+The `published_sites` table is created automatically the first time Freeable
 publishes or loads a website.
 
 ## 3. Add environment variables
@@ -32,7 +32,7 @@ Copy the remaining names from `.env.example` into Vercel:
 - `NEXT_PUBLIC_FREE_SITE_DOMAIN`: the base hostname used for free customer
   subdomains, such as `sites.example.com`.
 
-To let customers connect domains from inside SleekSite, also add:
+To let customers connect domains from inside Freeable, also add:
 
 - `VERCEL_API_TOKEN`: a Vercel access token allowed to manage the project.
 - `VERCEL_PROJECT_ID`: the project ID from Vercel project settings.
@@ -49,21 +49,21 @@ will provide a `*.vercel.app` address immediately.
 
 ## Custom domains
 
-When someone publishes with a custom domain, SleekSite adds that hostname to the
+When someone publishes with a custom domain, Freeable adds that hostname to the
 Vercel project using the Vercel API. The customer then creates the CNAME shown
-in SleekSite. Requests on that hostname are routed to the matching published
+in Freeable. Requests on that hostname are routed to the matching published
 site.
 
 For production, set `BUILDER_HOSTS` to every hostname that should continue to
-show the SleekSite builder. All other connected custom hostnames are treated as
+show the Freeable builder. All other connected custom hostnames are treated as
 customer websites.
 
 ## Free customer subdomains
 
 Add a wildcard domain such as `*.sites.example.com` to the Vercel project and
 set `NEXT_PUBLIC_FREE_SITE_DOMAIN=sites.example.com`. Vercel requires its
-nameservers for wildcard domains. SleekSite will then publish free addresses such
+nameservers for wildcard domains. Freeable will then publish free addresses such
 as `my-coffee-shop.sites.example.com` and route each hostname to its saved site.
 
-Without this variable, SleekSite safely falls back to path-based addresses such as
+Without this variable, Freeable safely falls back to path-based addresses such as
 `your-builder.vercel.app/s/my-coffee-shop`.
