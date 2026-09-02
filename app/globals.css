@@ -1148,6 +1148,67 @@ body {
   gap: 11px;
 }
 
+.landing-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.landing-header-actions .landing-model {
+  margin-right: 12px;
+}
+
+.landing-login,
+.landing-signup {
+  min-width: 66px;
+  border-radius: 999px;
+}
+
+.landing-login {
+  color: #b7c1be;
+}
+
+.landing-login:hover {
+  color: #f2f6f4;
+  background: rgb(242 246 244 / 8%);
+}
+
+.landing-signup {
+  color: #040d10;
+  background: #f2f6f4;
+}
+
+.landing-signup:hover {
+  background: #d8ff00;
+}
+
+.landing-account {
+  display: flex;
+  max-width: 170px;
+  height: 34px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  overflow: hidden;
+  border: 1px solid rgb(216 255 0 / 24%);
+  border-radius: 999px;
+  color: #b7c1be;
+  background: rgb(216 255 0 / 6%);
+  font-size: 10px;
+}
+
+.landing-account svg {
+  width: 13px;
+  flex: 0 0 auto;
+  color: #d8ff00;
+}
+
+.landing-account span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .landing-brand-mark {
   display: grid;
   width: 38px;
@@ -1606,6 +1667,10 @@ body {
     padding: 0 18px;
   }
 
+  .landing-header-actions .landing-model {
+    display: none;
+  }
+
   .prompt-card h1 {
     font-size: clamp(52px, 16vw, 74px);
   }
@@ -1659,6 +1724,17 @@ body {
 
   .landing-model {
     font-size: 8px;
+  }
+
+  .landing-header-actions {
+    gap: 4px;
+  }
+
+  .landing-login,
+  .landing-signup {
+    min-width: 54px;
+    padding-inline: 10px;
+    font-size: 10px;
   }
 
   .prompt-input {
