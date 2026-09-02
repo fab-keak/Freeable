@@ -1582,12 +1582,35 @@ body {
   }
 
   .landing-proof {
-    align-items: flex-start;
+    display: grid;
+    width: min(100%, 760px);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    margin: 24px auto 0;
+    padding: 14px 0 12px;
+    border-top: 1px solid rgb(242 246 244 / 10%);
+    border-bottom: 1px solid rgb(242 246 244 / 10%);
+  }
+
+  .landing-proof span {
+    min-width: 0;
+    min-height: 50px;
+    justify-content: center;
     flex-direction: column;
-    gap: 11px;
-    margin-left: auto;
-    margin-right: auto;
-    width: fit-content;
+    gap: 6px;
+    padding: 0 8px;
+    line-height: 1.25;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .landing-proof span + span {
+    border-left: 1px solid rgb(242 246 244 / 10%);
+  }
+
+  .landing-proof svg {
+    width: 17px;
+    height: 17px;
   }
 }
 
