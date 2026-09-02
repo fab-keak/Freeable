@@ -1315,277 +1315,286 @@ export default function Home() {
         </div>
 
         <aside className="build-panel">
-          <div className="panel-heading">
-            <span>
-              <WandSparkles />
-            </span>
-            <div>
-              <p className="eyebrow">build brief</p>
-              <h2>
-                {status === 'ready'
-                  ? selectedPage?.status === 'ready'
-                    ? `Editing ${selectedPage.title}`
-                    : `Planning ${selectedPage?.title || 'your site'}`
-                  : 'Making your first draft'}
-              </h2>
-            </div>
-          </div>
-
-          <blockquote>{activePrompt}</blockquote>
-
-          {status === 'ready' && sitePages.length > 1 && (
-            <section className="site-plan-card" aria-label="Website page plan">
+          <div className="build-panel-scroll">
+            <div className="panel-heading">
+              <span>
+                <WandSparkles />
+              </span>
               <div>
-                <span>
-                  <Files />
-                </span>
+                <p className="eyebrow">build brief</p>
+                <h2>
+                  {status === 'ready'
+                    ? selectedPage?.status === 'ready'
+                      ? `Editing ${selectedPage.title}`
+                      : `Planning ${selectedPage?.title || 'your site'}`
+                    : 'Making your first draft'}
+                </h2>
+              </div>
+            </div>
+
+            <blockquote>{activePrompt}</blockquote>
+
+            {status === 'ready' && sitePages.length > 1 && (
+              <section
+                className="site-plan-card"
+                aria-label="Website page plan"
+              >
                 <div>
-                  <strong>{sitePages.length}-page website</strong>
-                  <p>
-                    {unfinishedPages.length
-                      ? `${unfinishedPages.length} suggested ${unfinishedPages.length === 1 ? 'page is' : 'pages are'} ready to build.`
-                      : 'Every linked page is ready to edit and publish.'}
-                  </p>
+                  <span>
+                    <Files />
+                  </span>
+                  <div>
+                    <strong>{sitePages.length}-page website</strong>
+                    <p>
+                      {unfinishedPages.length
+                        ? `${unfinishedPages.length} suggested ${unfinishedPages.length === 1 ? 'page is' : 'pages are'} ready to build.`
+                        : 'Every linked page is ready to edit and publish.'}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              {unfinishedPages.length > 0 && (
-                <Button size="sm" onClick={() => void generateAllSuggested()}>
-                  <WandSparkles /> Build remaining pages
-                </Button>
-              )}
-            </section>
-          )}
+                {unfinishedPages.length > 0 && (
+                  <Button size="sm" onClick={() => void generateAllSuggested()}>
+                    <WandSparkles /> Build remaining pages
+                  </Button>
+                )}
+              </section>
+            )}
 
-          {activeTemplate && (
-            <section
-              className="template-direction"
-              aria-label="Selected design direction"
-            >
-              <div className="template-direction-heading">
-                <span className="template-icon" aria-hidden="true">
-                  <Palette />
-                </span>
-                <div>
-                  <p>Creative direction</p>
-                  <strong>{activeTemplate.name}</strong>
+            {activeTemplate && (
+              <section
+                className="template-direction"
+                aria-label="Selected design direction"
+              >
+                <div className="template-direction-heading">
+                  <span className="template-icon" aria-hidden="true">
+                    <Palette />
+                  </span>
+                  <div>
+                    <p>Creative direction</p>
+                    <strong>{activeTemplate.name}</strong>
+                  </div>
                 </div>
-              </div>
-              <p className="template-summary">{activeTemplate.summary}</p>
-              <div className="template-details">
-                <span>
-                  {activeTemplate.fonts.display} · {activeTemplate.fonts.body}
-                </span>
-                <div
-                  className="template-swatches"
-                  aria-label="Template color palette"
-                >
-                  {Object.entries(activeTemplate.colors).map(
-                    ([role, color]) => (
-                      <i
-                        key={role}
-                        title={`${role}: ${color}`}
-                        style={{ backgroundColor: color }}
-                      />
-                    ),
-                  )}
+                <p className="template-summary">{activeTemplate.summary}</p>
+                <div className="template-details">
+                  <span>
+                    {activeTemplate.fonts.display} · {activeTemplate.fonts.body}
+                  </span>
+                  <div
+                    className="template-swatches"
+                    aria-label="Template color palette"
+                  >
+                    {Object.entries(activeTemplate.colors).map(
+                      ([role, color]) => (
+                        <i
+                          key={role}
+                          title={`${role}: ${color}`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ),
+                    )}
+                  </div>
                 </div>
-              </div>
-            </section>
-          )}
+              </section>
+            )}
 
-          <ol className="build-steps">
-            {stages.map((label, index) => {
-              const isComplete = status === 'ready' || index < stage;
-              const isCurrent = status === 'building' && index === stage;
-              return (
-                <li key={label} className={isCurrent ? 'current' : ''}>
-                  {isComplete ? (
-                    <span className="step-icon complete">
-                      <Check />
-                    </span>
-                  ) : isCurrent ? (
-                    <span className="step-icon current">
-                      <Spinner />
-                    </span>
-                  ) : (
-                    <span className="step-icon">
-                      <Circle />
-                    </span>
-                  )}
-                  <span>{label}</span>
-                </li>
-              );
-            })}
-          </ol>
+            <ol className="build-steps">
+              {stages.map((label, index) => {
+                const isComplete = status === 'ready' || index < stage;
+                const isCurrent = status === 'building' && index === stage;
+                return (
+                  <li key={label} className={isCurrent ? 'current' : ''}>
+                    {isComplete ? (
+                      <span className="step-icon complete">
+                        <Check />
+                      </span>
+                    ) : isCurrent ? (
+                      <span className="step-icon current">
+                        <Spinner />
+                      </span>
+                    ) : (
+                      <span className="step-icon">
+                        <Circle />
+                      </span>
+                    )}
+                    <span>{label}</span>
+                  </li>
+                );
+              })}
+            </ol>
 
-          {status === 'ready' && selectedPage?.status === 'ready' && (
-            <>
-              {publishedUrl && (
-                <div className="publish-card" aria-live="polite">
-                  <div className="publish-card-heading">
-                    <span>
-                      <Link2 />
-                    </span>
-                    <div>
-                      <strong>Live on Freeable</strong>
-                      <p>
-                        {publishStatus === 'idle'
-                          ? 'You have unpublished changes'
-                          : 'Your website is live and ready to share'}
-                      </p>
+            {status === 'ready' && selectedPage?.status === 'ready' && (
+              <>
+                {publishedUrl && (
+                  <div className="publish-card" aria-live="polite">
+                    <div className="publish-card-heading">
+                      <span>
+                        <Link2 />
+                      </span>
+                      <div>
+                        <strong>Live on Freeable</strong>
+                        <p>
+                          {publishStatus === 'idle'
+                            ? 'You have unpublished changes'
+                            : 'Your website is live and ready to share'}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="published-address">
-                    <a href={publishedUrl} target="_blank" rel="noreferrer">
-                      {publishedUrl}
-                      <ExternalLink />
-                    </a>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void copyPublishedLink()}
-                    >
-                      {linkCopied ? <Check /> : <Copy />}
-                      {linkCopied ? 'Copied' : 'Copy'}
-                    </Button>
-                  </div>
-                  {customDomain && domainStatus !== 'idle' && (
-                    <div className="domain-connection">
-                      <div className="domain-connection-heading">
-                        <Globe2 />
-                        <div>
-                          <strong>{customDomain}</strong>
-                          <span className={`domain-status ${domainStatus}`}>
-                            {domainStatus === 'dns_verified'
-                              ? 'DNS verified · SSL activation pending'
-                              : domainStatus === 'checking'
-                                ? 'Checking DNS…'
-                                : 'Waiting for DNS'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="dns-record">
-                        <span>CNAME</span>
-                        <code>{customDomain}</code>
-                        <span>points to</span>
-                        <code>{domainTarget}</code>
-                      </div>
+                    <div className="published-address">
+                      <a href={publishedUrl} target="_blank" rel="noreferrer">
+                        {publishedUrl}
+                        <ExternalLink />
+                      </a>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => void checkDomain()}
-                        disabled={domainStatus === 'checking'}
+                        onClick={() => void copyPublishedLink()}
                       >
-                        {domainStatus === 'checking' ? <Spinner /> : <Globe2 />}
-                        Check connection
+                        {linkCopied ? <Check /> : <Copy />}
+                        {linkCopied ? 'Copied' : 'Copy'}
                       </Button>
-                      {domainError && (
-                        <p className="domain-error">{domainError}</p>
-                      )}
                     </div>
-                  )}
-                  <div className="publish-card-actions">
-                    {publishStatus === 'idle' && (
-                      <Button size="sm" onClick={openPublishOptions}>
-                        <Rocket /> Update site
+                    {customDomain && domainStatus !== 'idle' && (
+                      <div className="domain-connection">
+                        <div className="domain-connection-heading">
+                          <Globe2 />
+                          <div>
+                            <strong>{customDomain}</strong>
+                            <span className={`domain-status ${domainStatus}`}>
+                              {domainStatus === 'dns_verified'
+                                ? 'DNS verified · SSL activation pending'
+                                : domainStatus === 'checking'
+                                  ? 'Checking DNS…'
+                                  : 'Waiting for DNS'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="dns-record">
+                          <span>CNAME</span>
+                          <code>{customDomain}</code>
+                          <span>points to</span>
+                          <code>{domainTarget}</code>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void checkDomain()}
+                          disabled={domainStatus === 'checking'}
+                        >
+                          {domainStatus === 'checking' ? (
+                            <Spinner />
+                          ) : (
+                            <Globe2 />
+                          )}
+                          Check connection
+                        </Button>
+                        {domainError && (
+                          <p className="domain-error">{domainError}</p>
+                        )}
+                      </div>
+                    )}
+                    <div className="publish-card-actions">
+                      {publishStatus === 'idle' && (
+                        <Button size="sm" onClick={openPublishOptions}>
+                          <Rocket /> Update site
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={openPublishOptions}
+                      >
+                        <Globe2 /> Domains
                       </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={openPublishOptions}
-                    >
-                      <Globe2 /> Domains
-                    </Button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {publishError && (
-                <p className="publish-error" role="alert">
-                  {publishError}
-                </p>
-              )}
-
-              <form className="refine-form" onSubmit={handleRefine}>
-                <div className="refine-heading">
-                  <label htmlFor="refinement">
-                    Refine {selectedPage.title}
-                  </label>
-                  <label
-                    className={`attach-control compact ${
-                      uploadingTarget === 'refinement' ? 'uploading' : ''
-                    }`}
-                  >
-                    {uploadingTarget === 'refinement' ? (
-                      <Spinner />
-                    ) : (
-                      <ImagePlus />
-                    )}
-                    <span>
-                      {uploadingTarget === 'refinement'
-                        ? 'Uploading'
-                        : 'Add images'}
-                    </span>
-                    <input
-                      className="sr-only"
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
-                      multiple
-                      disabled={
-                        uploadingTarget !== null ||
-                        refinementImages.length >= maxAttachedImages
-                      }
-                      onChange={(event) => {
-                        void uploadImages(
-                          event.currentTarget.files,
-                          'refinement',
-                        );
-                        event.currentTarget.value = '';
-                      }}
-                    />
-                  </label>
-                </div>
-                {renderAttachments('refinement', refinementImages)}
-                {uploadError && (
-                  <p className="upload-message" role="alert">
-                    {uploadError}
+                {publishError && (
+                  <p className="publish-error" role="alert">
+                    {publishError}
                   </p>
                 )}
-                <Textarea
-                  id="refinement"
-                  value={refinement}
-                  onChange={(event) => setRefinement(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (
-                      event.key !== 'Enter' ||
-                      event.shiftKey ||
-                      event.nativeEvent.isComposing
-                    )
-                      return;
-                    event.preventDefault();
-                    event.currentTarget.form?.requestSubmit();
-                  }}
-                  placeholder={`Describe changes for ${selectedPage.title} only...`}
-                />
-                <Button
-                  type="submit"
-                  disabled={
-                    !refinement.trim() || uploadingTarget === 'refinement'
-                  }
-                >
-                  <WandSparkles /> Apply changes
-                </Button>
-              </form>
-            </>
-          )}
+              </>
+            )}
 
-          <div className="panel-note">
-            <Code2 />
-            <p>
-              Select a page to edit, copy, or download its complete HTML file.
-            </p>
+            <div className="panel-note">
+              <Code2 />
+              <p>
+                Select a page to edit, copy, or download its complete HTML file.
+              </p>
+            </div>
           </div>
+
+          {status === 'ready' && selectedPage?.status === 'ready' && (
+            <form className="refine-form" onSubmit={handleRefine}>
+              <div className="refine-heading">
+                <label htmlFor="refinement">Refine {selectedPage.title}</label>
+                <label
+                  className={`attach-control compact ${
+                    uploadingTarget === 'refinement' ? 'uploading' : ''
+                  }`}
+                >
+                  {uploadingTarget === 'refinement' ? (
+                    <Spinner />
+                  ) : (
+                    <ImagePlus />
+                  )}
+                  <span>
+                    {uploadingTarget === 'refinement'
+                      ? 'Uploading'
+                      : 'Add images'}
+                  </span>
+                  <input
+                    className="sr-only"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                    multiple
+                    disabled={
+                      uploadingTarget !== null ||
+                      refinementImages.length >= maxAttachedImages
+                    }
+                    onChange={(event) => {
+                      void uploadImages(
+                        event.currentTarget.files,
+                        'refinement',
+                      );
+                      event.currentTarget.value = '';
+                    }}
+                  />
+                </label>
+              </div>
+              {renderAttachments('refinement', refinementImages)}
+              {uploadError && (
+                <p className="upload-message" role="alert">
+                  {uploadError}
+                </p>
+              )}
+              <Textarea
+                id="refinement"
+                value={refinement}
+                onChange={(event) => setRefinement(event.target.value)}
+                onKeyDown={(event) => {
+                  if (
+                    event.key !== 'Enter' ||
+                    event.shiftKey ||
+                    event.nativeEvent.isComposing
+                  )
+                    return;
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }}
+                placeholder={`Describe changes for ${selectedPage.title} only...`}
+              />
+              <Button
+                type="submit"
+                disabled={
+                  !refinement.trim() || uploadingTarget === 'refinement'
+                }
+              >
+                <WandSparkles /> Apply changes
+              </Button>
+            </form>
+          )}
         </aside>
       </section>
 
