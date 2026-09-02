@@ -751,11 +751,24 @@ body {
 }
 
 .build-panel {
+  position: sticky;
+  top: 60px;
   display: flex;
   min-width: 0;
+  height: calc(100svh - 60px);
+  align-self: start;
   flex-direction: column;
-  padding: 28px 24px 22px;
+  overflow: hidden;
   background: #fbfbf8;
+}
+
+.build-panel-scroll {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 28px 24px 22px;
 }
 
 .panel-heading {
@@ -847,10 +860,12 @@ body {
 
 .refine-form {
   display: grid;
+  flex: 0 0 auto;
   gap: 9px;
-  margin-top: 3px;
-  padding-top: 22px;
+  padding: 16px 24px 22px;
   border-top: 1px solid var(--border);
+  background: #071013;
+  box-shadow: 0 -18px 38px rgb(0 0 0 / 28%);
 }
 
 .publish-card {
@@ -1024,8 +1039,15 @@ body {
   }
 
   .build-panel {
+    position: static;
+    height: auto;
+    overflow: visible;
     min-height: 460px;
     border-top: 1px solid var(--border);
+  }
+
+  .build-panel-scroll {
+    overflow: visible;
   }
 }
 
@@ -1071,7 +1093,15 @@ body {
   }
 
   .build-panel {
+    min-height: 0;
+  }
+
+  .build-panel-scroll {
     padding: 24px 18px;
+  }
+
+  .refine-form {
+    padding: 16px 18px 20px;
   }
 }
 
@@ -2532,7 +2562,8 @@ body {
     grid-template-columns: 164px minmax(0, 1fr) 300px;
   }
 
-  .build-panel {
+  .build-panel-scroll,
+  .refine-form {
     padding-inline: 18px;
   }
 }
