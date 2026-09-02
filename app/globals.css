@@ -881,7 +881,7 @@ body {
 }
 
 .publish-card-heading svg,
-.publish-card a svg {
+.published-address a svg {
   width: 14px;
 }
 
@@ -896,7 +896,14 @@ body {
   font-size: 10px;
 }
 
-.publish-card > a {
+.published-address {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.published-address > a {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -909,6 +916,14 @@ body {
   text-decoration: underline;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.published-address > a svg {
+  flex: 0 0 auto;
+}
+
+.published-address [data-slot='button'] {
+  min-width: 72px;
 }
 
 .publish-card-actions {
@@ -1553,7 +1568,7 @@ body {
   background: #d8ff00;
 }
 
-.publish-card > a {
+.published-address > a {
   color: #d8ff00;
 }
 
@@ -1973,25 +1988,43 @@ body {
 }
 
 .address-input {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
   overflow: hidden;
   border: 1px solid rgb(242 246 244 / 18%);
   border-radius: 5px;
   background: #071013;
 }
 
-.address-input > span {
-  padding-left: 12px;
-  color: #7e8986;
-  font-family: var(--font-ibm-plex-mono), monospace;
-  font-size: 11px;
-}
-
 .address-input [data-slot='input'] {
   border: 0;
   box-shadow: none;
+}
+
+.address-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+  padding: 8px 8px 8px 12px;
+  border: 1px solid rgb(216 255 0 / 24%);
+  border-radius: 5px;
+  background: rgb(216 255 0 / 5%);
+}
+
+.address-preview code {
+  overflow: hidden;
+  color: #d8ff00;
+  font-family: var(--font-ibm-plex-mono), monospace;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.address-preview [data-slot='button'] {
+  min-width: 88px;
+  color: #f2f6f4;
+  border-color: rgb(242 246 244 / 18%);
+  background: rgb(242 246 244 / 4%);
 }
 
 .domain-setup-note {
@@ -2489,6 +2522,16 @@ body {
 
   .domain-options > button {
     min-height: 108px;
+  }
+
+  .address-preview,
+  .published-address {
+    grid-template-columns: 1fr;
+  }
+
+  .address-preview [data-slot='button'],
+  .published-address [data-slot='button'] {
+    width: 100%;
   }
 
   .domain-dialog-actions {

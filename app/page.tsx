@@ -86,6 +86,15 @@ const imageExtensions: Record<string, string> = {
 const domainTarget =
   process.env.NEXT_PUBLIC_DOMAIN_TARGET || 'cname.vercel-dns.com';
 const freeSiteDomain = process.env.NEXT_PUBLIC_FREE_SITE_DOMAIN || '';
+const freeSiteOrigin = (
+  process.env.NEXT_PUBLIC_SITE_ORIGIN || 'https://www.freeable.ai'
+).replace(/\/$/, '');
+
+function getFreeSiteUrl(slug: string) {
+  return freeSiteDomain
+    ? `https://${slug}.${freeSiteDomain}`
+    : `${freeSiteOrigin}/s/${slug}`;
+}
 
 function createAddressSuggestion(value: string) {
   return (
@@ -199,6 +208,7 @@ export default function Home() {
   const [publishedUrl, setPublishedUrl] = useState('');
   const [publishError, setPublishError] = useState('');
   const [linkCopied, setLinkCopied] = useState(false);
+  const [addressCopied, setAddressCopied] = useState(false);
   const [promptImages, setPromptImages] = useState<PromptImage[]>([]);
   const [refinementImages, setRefinementImages] = useState<PromptImage[]>([]);
   const [activeImages, setActiveImages] = useState<PromptImage[]>([]);
@@ -668,6 +678,7 @@ export default function Home() {
     setPublishedUrl('');
     setPublishError('');
     setLinkCopied(false);
+    setAddressCopied(false);
     setPromptImages([]);
     setRefinementImages([]);
     setActiveImages([]);
@@ -891,6 +902,13 @@ export default function Home() {
     window.setTimeout(() => setLinkCopied(false), 1800);
   }
 
+  async function copyFreeAddress() {
+    if (!siteSlug) return;
+    await navigator.clipboard.writeText(getFreeSiteUrl(siteSlug));
+    setAddressCopied(true);
+    window.setTimeout(() => setAddressCopied(false), 1800);
+  }
+
   function renderAttachments(target: UploadTarget, images: PromptImage[]) {
     if (!images.length) return null;
     return (
@@ -954,9 +972,14 @@ export default function Home() {
                 if (error) setError('');
               }}
               onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                  event.currentTarget.form?.requestSubmit();
-                }
+                if (
+                  event.key !== 'Enter' ||
+                  event.shiftKey ||
+                  event.nativeEvent.isComposing
+                )
+                  return;
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
               }}
               className="prompt-input"
               placeholder="A serene portfolio for an architecture studio in Copenhagen..."
@@ -1373,10 +1396,20 @@ export default function Home() {
                       </p>
                     </div>
                   </div>
-                  <a href={publishedUrl} target="_blank" rel="noreferrer">
-                    {publishedUrl.replace(/^https?:\/\//, '')}
-                    <ExternalLink />
-                  </a>
+                  <div className="published-address">
+                    <a href={publishedUrl} target="_blank" rel="noreferrer">
+                      {publishedUrl}
+                      <ExternalLink />
+                    </a>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void copyPublishedLink()}
+                    >
+                      {linkCopied ? <Check /> : <Copy />}
+                      {linkCopied ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
                   {customDomain && domainStatus !== 'idle' && (
                     <div className="domain-connection">
                       <div className="domain-connection-heading">
@@ -1413,14 +1446,6 @@ export default function Home() {
                     </div>
                   )}
                   <div className="publish-card-actions">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void copyPublishedLink()}
-                    >
-                      {linkCopied ? <Check /> : <Copy />}
-                      {linkCopied ? 'Copied' : 'Copy link'}
-                    </Button>
                     {publishStatus === 'idle' && (
                       <Button size="sm" onClick={openPublishOptions}>
                         <Rocket /> Update site
@@ -1492,6 +1517,16 @@ export default function Home() {
                   id="refinement"
                   value={refinement}
                   onChange={(event) => setRefinement(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key !== 'Enter' ||
+                      event.shiftKey ||
+                      event.nativeEvent.isComposing
+                    )
+                      return;
+                    event.preventDefault();
+                    event.currentTarget.form?.requestSubmit();
+                  }}
                   placeholder={`Describe changes for ${selectedPage.title} only...`}
                 />
                 <Button
@@ -1745,7 +1780,6 @@ export default function Home() {
             <div className="domain-field">
               <label htmlFor="site-address">Choose your free address</label>
               <div className="address-input">
-                {!freeSiteDomain && <span>…/s/</span>}
                 <Input
                   id="site-address"
                   value={siteSlug}
@@ -1760,7 +1794,19 @@ export default function Home() {
                   }
                   placeholder="my-beautiful-site"
                 />
-                {freeSiteDomain && <span>.{freeSiteDomain}</span>}
+              </div>
+              <div className="address-preview" aria-label="Full website URL">
+                <code>{getFreeSiteUrl(siteSlug || 'my-beautiful-site')}</code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void copyFreeAddress()}
+                  disabled={!siteSlug}
+                >
+                  {addressCopied ? <Check /> : <Copy />}
+                  {addressCopied ? 'Copied' : 'Copy URL'}
+                </Button>
               </div>
               <p>Free hosting and HTTPS are included.</p>
             </div>
