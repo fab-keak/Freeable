@@ -2496,8 +2496,10 @@ body {
 }
 
 .domain-dialog {
-  width: min(680px, calc(100% - 28px));
-  max-width: 680px;
+  width: min(820px, calc(100% - 28px));
+  max-width: 820px;
+  max-height: calc(100svh - 28px);
+  overflow-y: auto;
   gap: 22px;
   padding: 28px;
   border: 1px solid rgb(242 246 244 / 18%);
@@ -2530,8 +2532,12 @@ body {
 
 .domain-options {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+}
+
+.domain-options.two-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .domain-options > button {
@@ -2624,6 +2630,106 @@ body {
   font-size: 10px;
 }
 
+.domain-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.domain-search [data-slot='button'] {
+  height: 42px;
+  min-width: 96px;
+  color: #f2f6f4;
+  border-color: rgb(242 246 244 / 18%);
+  background: rgb(242 246 244 / 4%);
+}
+
+.domain-search-result {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  margin-top: 4px;
+  padding: 12px;
+  border: 1px solid rgb(242 246 244 / 12%);
+  border-radius: 6px;
+  background: rgb(242 246 244 / 3%);
+}
+
+.domain-search-result > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+}
+
+.domain-search-result > span svg {
+  width: 14px;
+}
+
+.domain-search-result.available {
+  border-color: rgb(216 255 0 / 28%);
+  background: rgb(216 255 0 / 5%);
+}
+
+.domain-search-result.available > span {
+  color: #040d10;
+  background: #d8ff00;
+}
+
+.domain-search-result.unavailable > span {
+  color: #ffb4b4;
+  background: rgb(255 93 93 / 12%);
+}
+
+.domain-search-result p,
+.domain-search-result > div {
+  display: grid;
+  gap: 2px;
+}
+
+.domain-search-result > div {
+  text-align: right;
+}
+
+.domain-search-result strong {
+  color: #f2f6f4;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.domain-search-result > div > strong {
+  color: #d8ff00;
+  font-family: var(--font-ibm-plex-mono), monospace;
+}
+
+.domain-search-result small {
+  color: #7e8986;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.domain-renewal-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: #929c99;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.domain-renewal-note svg {
+  width: 13px;
+  flex: 0 0 auto;
+  color: #d8ff00;
+}
+
+.domain-renewal-note strong {
+  color: #dfe2dc;
+  font-weight: 600;
+}
+
 .address-input {
   overflow: hidden;
   border: 1px solid rgb(242 246 244 / 18%);
@@ -2705,6 +2811,68 @@ body {
   color: #ff8f8f;
   font-size: 10px;
   line-height: 1.45;
+}
+
+.domain-order-dialog {
+  width: min(560px, calc(100% - 28px));
+  max-width: 560px;
+  gap: 18px;
+  padding: 28px;
+  border: 1px solid rgb(242 246 244 / 18%);
+  border-radius: 12px;
+  color: #f2f6f4;
+  background:
+    radial-gradient(circle at 88% 0%, rgb(216 255 0 / 9%), transparent 17rem),
+    #0d181b;
+  box-shadow: 0 34px 100px rgb(0 0 0 / 52%);
+}
+
+.domain-order-dialog [data-slot='dialog-title'] {
+  font-family: var(--font-instrument-serif), Georgia, serif;
+  font-size: clamp(31px, 5vw, 44px);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+
+.domain-order-dialog [data-slot='dialog-description'] {
+  color: #929c99;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.domain-order-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 7px;
+  color: #040d10;
+  background: #d8ff00;
+}
+
+.domain-order-icon svg {
+  width: 20px;
+}
+
+.domain-order-url {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 12px;
+  border: 1px solid rgb(216 255 0 / 24%);
+  border-radius: 6px;
+  background: rgb(216 255 0 / 5%);
+}
+
+.domain-order-url code {
+  overflow: hidden;
+  color: #d8ff00;
+  font-family: var(--font-ibm-plex-mono), monospace;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .domain-connection {
@@ -3247,8 +3415,26 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .domain-options.two-options {
+    grid-template-columns: 1fr;
+  }
+
   .domain-options > button {
     min-height: 108px;
+  }
+
+  .domain-search,
+  .domain-search-result,
+  .domain-order-url {
+    grid-template-columns: 1fr;
+  }
+
+  .domain-search [data-slot='button'] {
+    width: 100%;
+  }
+
+  .domain-search-result > div {
+    text-align: left;
   }
 
   .address-preview,

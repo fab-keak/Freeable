@@ -53,6 +53,7 @@ export async function getPublishedSitesDatabase() {
        ON accounts (email)`,
     );
     await sql.unsafe(createPublishedSitesTable);
+    await sql.unsafe(createSlugIndex);
     await sql.unsafe(
       `CREATE TABLE IF NOT EXISTS user_sessions (
         token_hash TEXT PRIMARY KEY NOT NULL,
@@ -79,6 +80,33 @@ export async function getPublishedSitesDatabase() {
     await sql.unsafe(
       `CREATE INDEX IF NOT EXISTS idx_auth_attempts_key
        ON auth_attempts (key_hash)`,
+    );
+    await sql.unsafe(
+      `CREATE TABLE IF NOT EXISTS domain_orders (
+        id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        site_slug TEXT NOT NULL REFERENCES published_sites(slug) ON DELETE CASCADE,
+        domain TEXT NOT NULL,
+        amount_cents INTEGER NOT NULL,
+        renewal_price_cents INTEGER NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'usd',
+        years INTEGER NOT NULL DEFAULT 1,
+        status TEXT NOT NULL DEFAULT 'checkout_pending',
+        stripe_session_id TEXT UNIQUE,
+        payment_intent_id TEXT,
+        vercel_order_id TEXT,
+        failure_message TEXT,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      )`,
+    );
+    await sql.unsafe(
+      `CREATE INDEX IF NOT EXISTS idx_domain_orders_user
+       ON domain_orders (user_id, created_at DESC)`,
+    );
+    await sql.unsafe(
+      `CREATE INDEX IF NOT EXISTS idx_domain_orders_domain
+       ON domain_orders (domain, status)`,
     );
     await sql.unsafe(
       `ALTER TABLE published_sites

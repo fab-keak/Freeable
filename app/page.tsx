@@ -9,6 +9,7 @@ import {
   Check,
   ChevronLeft,
   Circle,
+  CircleDollarSign,
   Code2,
   Copy,
   Download,
@@ -25,6 +26,7 @@ import {
   Palette,
   Plus,
   Rocket,
+  Search,
   Smartphone,
   Sparkles,
   UserRound,
@@ -49,7 +51,32 @@ import { Textarea } from '@/components/ui/textarea';
 type BuildStatus = 'idle' | 'building' | 'ready' | 'error';
 type PublishStatus = 'idle' | 'publishing' | 'published' | 'error';
 type Viewport = 'desktop' | 'mobile';
-type PublishMode = 'free' | 'custom';
+type PublishMode = 'free' | 'custom' | 'buy';
+type DomainSearchStatus = 'idle' | 'searching' | 'ready' | 'error';
+type DomainSearchResult = {
+  domain: string;
+  available: boolean;
+  years?: number;
+  purchasePrice?: number;
+  renewalPrice?: number;
+  currency?: 'usd';
+  purchaseSupported?: boolean;
+};
+type DomainOrderNotice = {
+  domain: string;
+  siteSlug: string;
+  status:
+    | 'checkout_pending'
+    | 'paid'
+    | 'purchasing'
+    | 'purchase_pending'
+    | 'connection_pending'
+    | 'purchased'
+    | 'refunded'
+    | 'failed';
+  message: string | null;
+  url: string | null;
+};
 type DomainStatus =
   | 'idle'
   | 'pending_dns'
@@ -110,6 +137,8 @@ const imageExtensions: Record<string, string> = {
   'image/avif': 'avif',
 };
 const freeSiteDomain = process.env.NEXT_PUBLIC_FREE_SITE_DOMAIN || '';
+const domainCheckoutEnabled =
+  process.env.NEXT_PUBLIC_DOMAIN_CHECKOUT_ENABLED === 'true';
 const freeSiteOrigin = (
   process.env.NEXT_PUBLIC_SITE_ORIGIN || 'https://www.freeable.ai'
 ).replace(/\/$/, '');
@@ -267,6 +296,15 @@ export default function Home() {
   const [publishMode, setPublishMode] = useState<PublishMode>('free');
   const [siteSlug, setSiteSlug] = useState('');
   const [customDomain, setCustomDomain] = useState('');
+  const [purchaseDomain, setPurchaseDomain] = useState('');
+  const [domainSearchStatus, setDomainSearchStatus] =
+    useState<DomainSearchStatus>('idle');
+  const [domainSearchResult, setDomainSearchResult] =
+    useState<DomainSearchResult | null>(null);
+  const [domainOrderDialogOpen, setDomainOrderDialogOpen] = useState(false);
+  const [domainOrderNotice, setDomainOrderNotice] =
+    useState<DomainOrderNotice | null>(null);
+  const [domainOrderError, setDomainOrderError] = useState('');
   const [domainStatus, setDomainStatus] = useState<DomainStatus>('idle');
   const [domainError, setDomainError] = useState('');
   const [dnsRecord, setDnsRecord] = useState<DomainDnsRecord | null>(null);
@@ -316,6 +354,58 @@ export default function Home() {
       })
       .catch(() => undefined);
     return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const checkoutSession = new URLSearchParams(window.location.search).get(
+      'domain_checkout',
+    );
+    if (!checkoutSession) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    if (checkoutSession === 'cancelled') return;
+
+    window.setTimeout(() => setDomainOrderDialogOpen(true), 0);
+    let stopped = false;
+    let timer = 0;
+    const controller = new AbortController();
+    const checkOrder = async () => {
+      try {
+        const response = await fetch(
+          `/api/domain/order?session_id=${encodeURIComponent(checkoutSession)}`,
+          { cache: 'no-store', signal: controller.signal },
+        );
+        const data = (await response.json()) as DomainOrderNotice & {
+          error?: string;
+        };
+        if (!response.ok)
+          throw new Error(data.error || 'Order status unavailable.');
+        setDomainOrderNotice(data);
+        setDomainOrderError('');
+        const finished = ['purchased', 'refunded', 'failed'].includes(
+          data.status,
+        );
+        if (data.status === 'purchased') {
+          setDashboardRefreshKey((current) => current + 1);
+        }
+        if (!finished && !stopped) {
+          timer = window.setTimeout(checkOrder, 3_000);
+        }
+      } catch (orderError) {
+        if (controller.signal.aborted) return;
+        setDomainOrderError(
+          orderError instanceof Error
+            ? orderError.message
+            : 'The domain order is still processing.',
+        );
+        if (!stopped) timer = window.setTimeout(checkOrder, 5_000);
+      }
+    };
+    void checkOrder();
+    return () => {
+      stopped = true;
+      controller.abort();
+      window.clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -779,6 +869,9 @@ export default function Home() {
     setPublishMode('free');
     setSiteSlug('');
     setCustomDomain('');
+    setPurchaseDomain('');
+    setDomainSearchStatus('idle');
+    setDomainSearchResult(null);
     setDomainStatus('idle');
     setDomainError('');
     setDnsRecord(null);
@@ -918,6 +1011,34 @@ export default function Home() {
     }
   }
 
+  async function checkDomainAvailability() {
+    if (!purchaseDomain.trim() || domainSearchStatus === 'searching') return;
+    setDomainSearchStatus('searching');
+    setDomainSearchResult(null);
+    setDomainError('');
+    try {
+      const response = await fetch(
+        `/api/domain/search?domain=${encodeURIComponent(purchaseDomain.trim())}`,
+        { cache: 'no-store' },
+      );
+      const data = (await response.json()) as DomainSearchResult & {
+        error?: string;
+      };
+      if (!response.ok)
+        throw new Error(data.error || 'This domain could not be checked.');
+      setPurchaseDomain(data.domain);
+      setDomainSearchResult(data);
+      setDomainSearchStatus('ready');
+    } catch (searchError) {
+      setDomainSearchStatus('error');
+      setDomainError(
+        searchError instanceof Error
+          ? searchError.message
+          : 'This domain could not be checked.',
+      );
+    }
+  }
+
   async function publishSite() {
     const readyPages = sitePages.filter((page) => page.status === 'ready');
     const homePage = readyPages.find((page) => page.slug === '');
@@ -933,6 +1054,14 @@ export default function Home() {
 
       if (publishMode === 'custom' && !domain) {
         throw new Error('Enter the domain you want to connect.');
+      }
+      if (
+        publishMode === 'buy' &&
+        (!domainSearchResult?.available ||
+          !domainSearchResult.purchaseSupported ||
+          domainSearchResult.domain !== purchaseDomain.trim().toLowerCase())
+      ) {
+        throw new Error('Check an available domain before continuing.');
       }
 
       const response = await fetch('/api/deploy', {
@@ -971,6 +1100,28 @@ export default function Home() {
 
       if (!response.ok || !data.path) {
         throw new Error(data.error || 'The site could not be published.');
+      }
+
+      if (publishMode === 'buy') {
+        const checkoutResponse = await fetch('/api/domain/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            domain: domainSearchResult!.domain,
+            siteSlug: data.path.split('/').pop(),
+          }),
+        });
+        const checkout = (await checkoutResponse.json()) as {
+          checkoutUrl?: string;
+          error?: string;
+        };
+        if (!checkoutResponse.ok || !checkout.checkoutUrl) {
+          throw new Error(
+            checkout.error || 'Secure domain checkout could not be started.',
+          );
+        }
+        window.location.assign(checkout.checkoutUrl);
+        return;
       }
 
       setPublishedUrl(
@@ -2215,12 +2366,15 @@ export default function Home() {
             <p className="eyebrow">Publish your website</p>
             <DialogTitle>Choose your web address</DialogTitle>
             <DialogDescription>
-              Go live instantly with a free Freeable address, or connect a
-              domain you own.
+              Go live with a free Freeable address, connect a domain you own, or
+              buy a new one as you launch.
             </DialogDescription>
           </DialogHeader>
 
-          <fieldset className="domain-options" aria-label="Publishing address">
+          <fieldset
+            className={`domain-options${domainCheckoutEnabled ? '' : ' two-options'}`}
+            aria-label="Publishing address"
+          >
             <button
               type="button"
               className={publishMode === 'free' ? 'selected' : ''}
@@ -2253,6 +2407,24 @@ export default function Home() {
               <small>Use a domain you already own</small>
               {publishMode === 'custom' && <Check />}
             </button>
+            {domainCheckoutEnabled && (
+              <button
+                type="button"
+                className={publishMode === 'buy' ? 'selected' : ''}
+                onClick={() => {
+                  setPublishMode('buy');
+                  setDomainError('');
+                }}
+                aria-pressed={publishMode === 'buy'}
+              >
+                <span>
+                  <CircleDollarSign />
+                </span>
+                <strong>Buy a new domain</strong>
+                <small>Search, pay, and connect</small>
+                {publishMode === 'buy' && <Check />}
+              </button>
+            )}
           </fieldset>
 
           {publishMode === 'free' ? (
@@ -2289,7 +2461,7 @@ export default function Home() {
               </div>
               <p>Free hosting and HTTPS are included.</p>
             </div>
-          ) : (
+          ) : publishMode === 'custom' ? (
             <div className="domain-field">
               <label htmlFor="custom-domain">Your domain</label>
               <Input
@@ -2311,6 +2483,103 @@ export default function Home() {
                 </p>
               </div>
             </div>
+          ) : (
+            <div className="domain-field domain-purchase-field">
+              <label htmlFor="purchase-domain">Find your new domain</label>
+              <form
+                className="domain-search"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void checkDomainAvailability();
+                }}
+              >
+                <Input
+                  id="purchase-domain"
+                  value={purchaseDomain}
+                  onChange={(event) => {
+                    setPurchaseDomain(event.target.value.toLowerCase());
+                    setDomainSearchStatus('idle');
+                    setDomainSearchResult(null);
+                    setDomainError('');
+                  }}
+                  placeholder="yourbrand.com"
+                  inputMode="url"
+                  autoComplete="off"
+                />
+                <Button
+                  type="submit"
+                  variant="outline"
+                  disabled={
+                    !purchaseDomain.trim() || domainSearchStatus === 'searching'
+                  }
+                >
+                  {domainSearchStatus === 'searching' ? (
+                    <Spinner />
+                  ) : (
+                    <Search />
+                  )}
+                  {domainSearchStatus === 'searching' ? 'Checking…' : 'Check'}
+                </Button>
+              </form>
+
+              {domainSearchResult && !domainSearchResult.available && (
+                <div className="domain-search-result unavailable">
+                  <span>
+                    <X />
+                  </span>
+                  <p>
+                    <strong>{domainSearchResult.domain} is taken</strong>
+                    <small>Try another name or a different extension.</small>
+                  </p>
+                </div>
+              )}
+
+              {domainSearchResult?.available && (
+                <div className="domain-search-result available">
+                  <span>
+                    <Check />
+                  </span>
+                  <p>
+                    <strong>{domainSearchResult.domain} is available</strong>
+                    <small>
+                      {domainSearchResult.purchaseSupported
+                        ? 'Registration, HTTPS, and automatic connection are included.'
+                        : 'This extension needs additional registration details.'}
+                    </small>
+                  </p>
+                  <div>
+                    <strong>
+                      {new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: 'USD',
+                      }).format(domainSearchResult.purchasePrice || 0)}
+                    </strong>
+                    <small>
+                      first {domainSearchResult.years || 1}{' '}
+                      {(domainSearchResult.years || 1) === 1 ? 'year' : 'years'}
+                    </small>
+                  </div>
+                </div>
+              )}
+
+              {domainSearchResult?.available &&
+                domainSearchResult.purchaseSupported && (
+                  <div className="domain-renewal-note">
+                    <LockKeyhole />
+                    <p>
+                      Secure checkout by Stripe. Renews automatically at{' '}
+                      <strong>
+                        {new Intl.NumberFormat('en-US', {
+                          style: 'currency',
+                          currency: 'USD',
+                        }).format(domainSearchResult.renewalPrice || 0)}
+                        /year
+                      </strong>
+                      . Domain registrations are final.
+                    </p>
+                  </div>
+                )}
+            </div>
           )}
 
           {publishError && <p className="domain-error">{publishError}</p>}
@@ -2325,7 +2594,12 @@ export default function Home() {
               disabled={
                 publishStatus === 'publishing' ||
                 !siteSlug ||
-                (publishMode === 'custom' && !customDomain.trim())
+                (publishMode === 'custom' && !customDomain.trim()) ||
+                (publishMode === 'buy' &&
+                  (!domainSearchResult?.available ||
+                    !domainSearchResult.purchaseSupported ||
+                    domainSearchResult.domain !==
+                      purchaseDomain.trim().toLowerCase()))
               }
             >
               {publishStatus === 'publishing' ? <Spinner /> : <Rocket />}
@@ -2333,8 +2607,88 @@ export default function Home() {
                 ? 'Publishing…'
                 : publishMode === 'custom'
                   ? 'Publish & set up domain'
-                  : 'Publish with free address'}
+                  : publishMode === 'buy'
+                    ? `Pay ${new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: 'USD',
+                      }).format(
+                        domainSearchResult?.purchasePrice || 0,
+                      )} & publish`
+                    : 'Publish with free address'}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={domainOrderDialogOpen}
+        onOpenChange={setDomainOrderDialogOpen}
+      >
+        <DialogContent className="domain-order-dialog">
+          <div className="domain-order-icon">
+            {domainOrderNotice?.status === 'purchased' ? (
+              <Check />
+            ) : domainOrderNotice?.status === 'refunded' ||
+              domainOrderNotice?.status === 'failed' ? (
+              <X />
+            ) : (
+              <Spinner />
+            )}
+          </div>
+          <DialogHeader>
+            <p className="eyebrow">Domain purchase</p>
+            <DialogTitle>
+              {domainOrderNotice?.status === 'purchased'
+                ? `${domainOrderNotice.domain} is live`
+                : domainOrderNotice?.status === 'refunded'
+                  ? 'Your payment was refunded'
+                  : domainOrderNotice?.status === 'failed'
+                    ? 'We need to help with this order'
+                    : 'Securing your new domain'}
+            </DialogTitle>
+            <DialogDescription>
+              {domainOrderNotice?.status === 'purchased'
+                ? 'Freeable registered the domain and connected it to your website.'
+                : domainOrderNotice?.message ||
+                  domainOrderError ||
+                  'Payment received. Registration and connection usually finish within a minute.'}
+            </DialogDescription>
+          </DialogHeader>
+          {domainOrderNotice?.url && (
+            <div className="domain-order-url">
+              <code>{domainOrderNotice.url}</code>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  void navigator.clipboard.writeText(domainOrderNotice.url!)
+                }
+              >
+                <Copy /> Copy
+              </Button>
+            </div>
+          )}
+          <div className="domain-dialog-actions">
+            <Button
+              variant="ghost"
+              onClick={() => setDomainOrderDialogOpen(false)}
+            >
+              {domainOrderNotice?.status === 'purchased' ? 'Done' : 'Close'}
+            </Button>
+            {domainOrderNotice?.url && (
+              <Button
+                render={
+                  <a
+                    href={domainOrderNotice.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Open ${domainOrderNotice.domain}`}
+                  />
+                }
+              >
+                <ExternalLink /> Open website
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
