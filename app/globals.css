@@ -1393,6 +1393,122 @@ body {
   background: #0d181b;
 }
 
+.template-direction {
+  position: relative;
+  display: grid;
+  gap: 11px;
+  margin-top: 12px;
+  padding: 14px;
+  overflow: hidden;
+  border: 1px solid rgb(216 255 0 / 24%);
+  border-radius: 4px;
+  background:
+    linear-gradient(110deg, rgb(216 255 0 / 8%), transparent 58%), #0d181b;
+}
+
+.template-direction::after {
+  position: absolute;
+  top: -30px;
+  right: -34px;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: rgb(216 255 0 / 8%);
+  content: '';
+  filter: blur(2px);
+  pointer-events: none;
+}
+
+.template-direction-heading {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.template-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgb(216 255 0 / 24%);
+  border-radius: 3px;
+  color: #d8ff00;
+  background: rgb(216 255 0 / 8%);
+}
+
+.template-icon svg {
+  width: 14px;
+}
+
+.template-direction-heading p {
+  color: #7e8986;
+  font-family: var(--font-ibm-plex-mono), monospace;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.template-direction-heading strong {
+  display: block;
+  margin-top: 1px;
+  color: #f2f6f4;
+  font-size: 13px;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+}
+
+.template-summary {
+  position: relative;
+  z-index: 1;
+  color: #9da6a3;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.template-details {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  padding-top: 9px;
+  border-top: 1px solid rgb(242 246 244 / 9%);
+}
+
+.template-details > span {
+  overflow: hidden;
+  color: #78827f;
+  font-family: var(--font-ibm-plex-mono), monospace;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-swatches {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid rgb(242 246 244 / 12%);
+  border-radius: 999px;
+  background: #071013;
+}
+
+.template-swatches i {
+  width: 9px;
+  height: 9px;
+  border: 1px solid rgb(242 246 244 / 18%);
+  border-radius: 50%;
+}
+
+.template-direction + .build-steps {
+  margin-top: 17px;
+}
+
 .panel-heading > span,
 .step-icon.complete {
   color: #040d10;

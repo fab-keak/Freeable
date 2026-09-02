@@ -17,6 +17,7 @@ import {
   ImagePlus,
   Link2,
   Monitor,
+  Palette,
   Rocket,
   Smartphone,
   Sparkles,
@@ -34,6 +35,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { getDesignTemplate } from '@/lib/design-templates';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -52,7 +54,7 @@ type PromptImage = { id: string; name: string; path: string };
 
 const stages = [
   'Reading your brief',
-  'Planning the experience',
+  'Matching a design system',
   'Designing the interface',
   'Writing the final code',
 ];
@@ -117,7 +119,9 @@ export default function Home() {
   const [customDomain, setCustomDomain] = useState('');
   const [domainStatus, setDomainStatus] = useState<DomainStatus>('idle');
   const [domainError, setDomainError] = useState('');
+  const [templateId, setTemplateId] = useState('');
   const requestRef = useRef<AbortController | null>(null);
+  const activeTemplate = getDesignTemplate(templateId);
 
   useEffect(() => {
     if (status !== 'building') return;
@@ -151,7 +155,12 @@ export default function Home() {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: instruction, previousHtml, images }),
+        body: JSON.stringify({
+          prompt: instruction,
+          previousHtml,
+          images,
+          templateId: previousHtml ? templateId : undefined,
+        }),
         signal: controller.signal,
       });
 
@@ -161,6 +170,9 @@ export default function Home() {
       }
 
       if (!response.body) throw new Error('The model returned an empty site.');
+
+      const selectedTemplate = response.headers.get('X-SleekSite-Template');
+      if (selectedTemplate) setTemplateId(selectedTemplate);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -332,6 +344,7 @@ export default function Home() {
     setCustomDomain('');
     setDomainStatus('idle');
     setDomainError('');
+    setTemplateId('');
   }
 
   function downloadSite() {
@@ -572,7 +585,7 @@ export default function Home() {
               <Sparkles /> GPT-5.6 Sol
             </span>
             <span>
-              <ImagePlus /> Visual references
+              <Palette /> 8 curated directions
             </span>
             <span>
               <Rocket /> One-click publishing
@@ -736,6 +749,43 @@ export default function Home() {
           </div>
 
           <blockquote>{activePrompt}</blockquote>
+
+          {activeTemplate && (
+            <section
+              className="template-direction"
+              aria-label="Selected design direction"
+            >
+              <div className="template-direction-heading">
+                <span className="template-icon" aria-hidden="true">
+                  <Palette />
+                </span>
+                <div>
+                  <p>Creative direction</p>
+                  <strong>{activeTemplate.name}</strong>
+                </div>
+              </div>
+              <p className="template-summary">{activeTemplate.summary}</p>
+              <div className="template-details">
+                <span>
+                  {activeTemplate.fonts.display} · {activeTemplate.fonts.body}
+                </span>
+                <div
+                  className="template-swatches"
+                  aria-label="Template color palette"
+                >
+                  {Object.entries(activeTemplate.colors).map(
+                    ([role, color]) => (
+                      <i
+                        key={role}
+                        title={`${role}: ${color}`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ),
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
 
           <ol className="build-steps">
             {stages.map((label, index) => {

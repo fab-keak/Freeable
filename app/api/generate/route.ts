@@ -6,6 +6,10 @@ import {
   maxPromptImageBytes,
   maxPromptImages,
 } from '@/lib/uploads';
+import {
+  formatTemplatePrompt,
+  selectDesignTemplate,
+} from '@/lib/design-templates';
 
 const endpoint = 'https://api.cheaperinference.com/v1/chat/completions';
 const model = 'gpt-5.6-sol';
@@ -23,17 +27,22 @@ Requirements:
 - Put all CSS in a <style> tag and all JavaScript in a <script> tag.
 - Make the layout responsive across desktop and mobile.
 - Use semantic HTML, visible focus states, accessible labels, and sufficient contrast.
-- Choose an intentional visual system tailored to the brief: typography, colors, rhythm, shape, and motion.
+- Follow the selected design system closely while adapting its composition to the user's specific brief.
 - Write specific, convincing content instead of lorem ipsum or vague placeholders.
 - Make interactive elements work with small, dependency-free JavaScript when useful.
 - When uploaded images are supplied, understand them visually and use the provided Vercel Blob URLs in the HTML when the brief calls for those images.
 - For any other imagery, use only public HTTPS image URLs. The page must still look good if images fail.
 - Do not load JavaScript frameworks or require a build step.
-- Keep the document focused and complete within 3,500 output tokens. Prefer a finished page over excessive sections.
+- Keep the document focused and complete within 5,000 output tokens. Prefer a finished page over excessive sections.
 - Do not explain the result.`;
 
 export async function POST(request: Request) {
-  let body: { prompt?: unknown; previousHtml?: unknown; images?: unknown };
+  let body: {
+    prompt?: unknown;
+    previousHtml?: unknown;
+    images?: unknown;
+    templateId?: unknown;
+  };
 
   try {
     body = (await request.json()) as typeof body;
@@ -49,6 +58,8 @@ export async function POST(request: Request) {
     typeof body.previousHtml === 'string'
       ? body.previousHtml.slice(0, 450_000)
       : '';
+  const preferredTemplateId =
+    typeof body.templateId === 'string' ? body.templateId : '';
 
   if (prompt.length < 12 || prompt.length > 4_000) {
     return NextResponse.json(
@@ -161,6 +172,13 @@ export async function POST(request: Request) {
         )}\nUnderstand the attached images visually. When the user wants one shown in the website, use its matching HTTPS URL exactly in the HTML. Never embed the data URL.`
     : '';
 
+  const designTemplate = selectDesignTemplate(
+    prompt,
+    previousHtml,
+    preferredTemplateId,
+  );
+  const templateGuide = formatTemplatePrompt(designTemplate);
+
   const task = previousHtml
     ? `Revise the existing website according to this instruction: ${prompt}${attachmentGuide}\n\nExisting website:\n${previousHtml}`
     : `${prompt}${attachmentGuide}`;
@@ -176,7 +194,7 @@ export async function POST(request: Request) {
     : task;
 
   const messages = [
-    { role: 'system', content: systemPrompt },
+    { role: 'system', content: `${systemPrompt}\n${templateGuide}` },
     { role: 'user', content: userContent },
   ];
 
@@ -319,6 +337,7 @@ export async function POST(request: Request) {
         'Cache-Control': 'no-store',
         'Content-Type': 'text/plain; charset=utf-8',
         'X-Content-Type-Options': 'nosniff',
+        'X-SleekSite-Template': designTemplate.id,
       },
     });
   } catch (providerError) {
