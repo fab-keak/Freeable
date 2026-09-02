@@ -1017,6 +1017,17 @@ export default function Home() {
             </span>
           </div>
         </section>
+
+        <footer className="landing-attribution">
+          <span>by</span>{' '}
+          <a
+            href="https://cheaperinference.com"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Cheaper Inference
+          </a>
+        </footer>
       </main>
     );
   }

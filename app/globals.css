@@ -1322,6 +1322,29 @@ body {
   color: #d8ff00;
 }
 
+.landing-attribution {
+  position: absolute;
+  z-index: 2;
+  bottom: 17px;
+  left: 50%;
+  color: #66716e;
+  font-family: var(--font-ibm-plex-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  transform: translateX(-50%);
+}
+
+.landing-attribution a {
+  color: #929c99;
+  text-decoration: none;
+  transition: color 150ms ease;
+}
+
+.landing-attribution a:hover,
+.landing-attribution a:focus-visible {
+  color: #d8ff00;
+}
+
 .studio-shell,
 .studio-header,
 .preview-toolbar,
@@ -1561,7 +1584,7 @@ body {
 @media (max-width: 700px) {
   .landing-shell {
     align-items: flex-start;
-    padding: 116px 18px 34px;
+    padding: 116px 18px 78px;
   }
 
   .landing-header {
