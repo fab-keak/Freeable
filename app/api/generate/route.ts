@@ -10,6 +10,7 @@ import {
   formatTemplatePrompt,
   selectDesignTemplate,
 } from '@/lib/design-templates';
+import { impeccableDesignGuide } from '@/lib/impeccable-design-guide';
 
 const endpoint = 'https://api.cheaperinference.com/v1/chat/completions';
 const model = 'gpt-5.6-sol';
@@ -254,7 +255,10 @@ export async function POST(request: Request) {
     : task;
 
   const messages = [
-    { role: 'system', content: `${systemPrompt}\n${templateGuide}` },
+    {
+      role: 'system',
+      content: `${systemPrompt}\n${impeccableDesignGuide}\n${templateGuide}`,
+    },
     { role: 'user', content: userContent },
   ];
 
@@ -396,6 +400,7 @@ export async function POST(request: Request) {
       headers: {
         'Cache-Control': 'no-store',
         'Content-Type': 'text/plain; charset=utf-8',
+        'X-Freeable-Design-Standard': 'impeccable-v1',
         'X-Content-Type-Options': 'nosniff',
         'X-SleekSite-Template': designTemplate.id,
       },

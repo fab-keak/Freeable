@@ -161,9 +161,9 @@ export const designTemplates: readonly DesignTemplate[] = [
     ],
     fonts: {
       display: 'Space Grotesk',
-      body: 'Inter',
+      body: 'IBM Plex Sans',
       googleFontsUrl:
-        'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap',
+        'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap',
     },
     colors: {
       background: '#07100F',
@@ -344,7 +344,7 @@ export const designTemplates: readonly DesignTemplate[] = [
     components:
       'Product tiles, flavor or variant chips, sticker-like callouts, review snippets, benefit marquees, bundles, and large add-to-cart CTAs.',
     motion:
-      'Springy micro-interactions, subtle card tilts, ticker motion, and lively but short transitions.',
+      'Snappy color and scale feedback with exponential ease-out, subtle card tilts, ticker motion, and lively but short transitions.',
     imagery:
       'Feature crisp cutout products, joyful lifestyle photography, strong solid backdrops, and playful scale shifts.',
     avoid:
