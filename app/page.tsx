@@ -73,6 +73,7 @@ type DomainSearchResult = {
   renewalPrice?: number;
   currency?: 'usd';
   purchaseSupported?: boolean;
+  alternatives?: DomainSearchResult[];
 };
 type DomainOrderNotice = {
   domain: string;
@@ -3281,7 +3282,10 @@ export default function Home() {
                   </span>
                   <p>
                     <strong>{domainSearchResult.domain} is taken</strong>
-                    <small>Try another name or a different extension.</small>
+                    <small>
+                      It is already registered. Choose an available option below
+                      or try another name.
+                    </small>
                   </p>
                 </div>
               )}
@@ -3313,6 +3317,55 @@ export default function Home() {
                   </div>
                 </div>
               )}
+
+              {domainSearchResult?.alternatives &&
+                domainSearchResult.alternatives.length > 0 && (
+                  <div className="domain-alternatives">
+                    <div className="domain-alternatives-heading">
+                      <strong>
+                        {domainSearchResult.available
+                          ? 'More available options'
+                          : 'Available alternatives'}
+                      </strong>
+                      <small>Same name, different domain endings</small>
+                    </div>
+                    <div className="domain-alternative-list">
+                      {domainSearchResult.alternatives.map((alternative) => {
+                        const selected =
+                          domainSearchResult.domain === alternative.domain;
+                        return (
+                          <button
+                            type="button"
+                            className={selected ? 'selected' : ''}
+                            key={alternative.domain}
+                            onClick={() => {
+                              setPurchaseDomain(alternative.domain);
+                              setDomainSearchResult((current) => ({
+                                ...alternative,
+                                alternatives: current?.alternatives || [],
+                              }));
+                              setDomainError('');
+                            }}
+                          >
+                            <span>
+                              <strong>{alternative.domain}</strong>
+                              <small>Available to register</small>
+                            </span>
+                            <span>
+                              <strong>
+                                {new Intl.NumberFormat('en-US', {
+                                  style: 'currency',
+                                  currency: 'USD',
+                                }).format(alternative.purchasePrice || 0)}
+                              </strong>
+                              <small>{selected ? 'Selected' : 'Choose'}</small>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
               {domainSearchResult?.available &&
                 domainSearchResult.purchaseSupported && (

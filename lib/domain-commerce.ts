@@ -5,6 +5,8 @@ import { addProjectDomain } from '@/lib/vercel-domains';
 const domainPattern =
   /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 
+const recommendedTlds = ['com', 'co', 'net', 'org', 'io', 'ai'];
+
 type RegistrarPrice = {
   years: number;
   purchasePrice: number | string;
@@ -156,6 +158,60 @@ export async function searchDomain(domainValue: string) {
     currency: 'usd' as const,
     purchaseSupported: schema !== null && Object.keys(schema).length === 0,
   };
+}
+
+export async function searchDomainAlternatives(domainValue: string, limit = 4) {
+  const domain = normalizeDomain(domainValue);
+  if (!isValidDomain(domain)) return [];
+
+  const name = domain.split('.')[0];
+  const candidates = recommendedTlds
+    .map((tld) => `${name}.${tld}`)
+    .filter((candidate) => candidate !== domain);
+  const { token, appendSearch } = getRegistrarConfiguration();
+  const response = await fetch(
+    appendSearch('https://api.vercel.com/v1/registrar/domains/availability'),
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ domains: candidates }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  if (!response.ok) return [];
+
+  const data = (await response.json()) as {
+    results?: Array<{ domain?: unknown; available?: unknown }>;
+  };
+  const availableDomains = (data.results || [])
+    .filter(
+      (result) =>
+        typeof result.domain === 'string' &&
+        candidates.includes(result.domain.toLowerCase()) &&
+        isExplicitlyAvailable(result.available),
+    )
+    .map((result) => String(result.domain).toLowerCase());
+
+  const offers = await Promise.allSettled(
+    availableDomains.map((candidate) => searchDomain(candidate)),
+  );
+  return offers
+    .filter(
+      (
+        offer,
+      ): offer is PromiseFulfilledResult<
+        Awaited<ReturnType<typeof searchDomain>>
+      > =>
+        offer.status === 'fulfilled' &&
+        offer.value.available &&
+        offer.value.purchaseSupported === true,
+    )
+    .map((offer) => offer.value)
+    .slice(0, Math.max(0, limit));
 }
 
 export async function buyDomain(input: {
