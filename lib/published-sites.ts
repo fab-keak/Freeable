@@ -24,6 +24,30 @@ const createSlugIndex = `
 let database: ReturnType<typeof postgres> | null = null;
 let initialization: Promise<void> | null = null;
 
+async function isPublishedSitesSchemaReady(sql: ReturnType<typeof postgres>) {
+  const rows = await sql`
+    SELECT
+      to_regclass('public.accounts') IS NOT NULL AS accounts_ready,
+      to_regclass('public.published_sites') IS NOT NULL AS sites_ready,
+      to_regclass('public.user_sessions') IS NOT NULL AS sessions_ready,
+      to_regclass('public.auth_attempts') IS NOT NULL AS attempts_ready,
+      to_regclass('public.domain_orders') IS NOT NULL AS orders_ready,
+      to_regclass('public.idx_accounts_email') IS NOT NULL AS accounts_index_ready,
+      to_regclass('public.idx_published_sites_slug') IS NOT NULL AS slug_index_ready,
+      to_regclass('public.idx_published_sites_custom_domain') IS NOT NULL AS domain_index_ready,
+      to_regclass('public.idx_published_sites_user') IS NOT NULL AS sites_user_index_ready,
+      (
+        SELECT COUNT(*) = 4
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'published_sites'
+          AND column_name IN ('pages_json', 'user_id', 'custom_domain', 'domain_status')
+      ) AS site_columns_ready
+  `;
+  const status = rows[0] as Record<string, boolean> | undefined;
+  return Boolean(status && Object.values(status).every(Boolean));
+}
+
 export async function getPublishedSitesDatabase() {
   const databaseUrl =
     process.env.DATABASE_POSTGRES_URL ?? process.env.DATABASE_URL;
@@ -31,7 +55,7 @@ export async function getPublishedSitesDatabase() {
     throw new Error('Published-site storage is not configured.');
 
   database ??= postgres(databaseUrl, {
-    max: 1,
+    max: 3,
     prepare: false,
     connect_timeout: 5,
     idle_timeout: 10,
@@ -47,6 +71,10 @@ export async function getPublishedSitesDatabase() {
   const sql = database;
 
   initialization ??= (async () => {
+    // Serverless instances start independently. Avoid repeating locking DDL on
+    // every cold start once the production schema is already complete.
+    if (await isPublishedSitesSchemaReady(sql)) return;
+
     await sql.unsafe(
       `CREATE TABLE IF NOT EXISTS accounts (
         id TEXT PRIMARY KEY NOT NULL,

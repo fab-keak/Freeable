@@ -5,6 +5,20 @@ import { getAuthenticatedUser } from '@/lib/auth';
 import { getPublishedSitesDatabase } from '@/lib/published-sites';
 
 export const runtime = 'nodejs';
+export const maxDuration = 30;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error('The admin dashboard request timed out.')),
+      timeoutMs,
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
 
 function getFreeSiteUrl(slug: string) {
   const freeSiteDomain =
@@ -28,7 +42,15 @@ function getPageCount(value: unknown) {
 }
 
 export async function GET(request: Request) {
-  const user = await getAuthenticatedUser(request).catch(() => null);
+  let user;
+  try {
+    user = await withTimeout(getAuthenticatedUser(request), 8_000);
+  } catch {
+    return NextResponse.json(
+      { error: 'The admin dashboard took too long to connect. Try again.' },
+      { status: 503 },
+    );
+  }
   if (!user) {
     return NextResponse.json(
       { error: 'Sign in to open the admin dashboard.' },
@@ -44,36 +66,39 @@ export async function GET(request: Request) {
 
   try {
     const database = await getPublishedSitesDatabase();
-    const [statsRows, userRows, siteRows] = await Promise.all([
-      database`
-        SELECT
-          (SELECT COUNT(*)::int FROM accounts) AS user_count,
-          (SELECT COUNT(*)::int FROM published_sites) AS website_count,
-          (SELECT COUNT(*)::int FROM published_sites
-            WHERE custom_domain IS NOT NULL) AS custom_domain_count,
-          (SELECT COUNT(*)::int FROM published_sites
-            WHERE created_at >= ${Date.now() - 7 * 24 * 60 * 60 * 1_000}) AS websites_this_week
-      `,
-      database`
-        SELECT accounts.id, accounts.name, accounts.email, accounts.created_at,
-               COUNT(published_sites.id)::int AS website_count,
-               MAX(published_sites.updated_at) AS last_website_update
-        FROM accounts
-        LEFT JOIN published_sites ON published_sites.user_id = accounts.id
-        GROUP BY accounts.id, accounts.name, accounts.email, accounts.created_at
-        ORDER BY accounts.created_at DESC
-      `,
-      database`
-        SELECT published_sites.slug, published_sites.title,
-               published_sites.pages_json, published_sites.custom_domain,
-               published_sites.domain_status, published_sites.created_at,
-               published_sites.updated_at, accounts.name AS owner_name,
-               accounts.email AS owner_email
-        FROM published_sites
-        LEFT JOIN accounts ON accounts.id = published_sites.user_id
-        ORDER BY published_sites.updated_at DESC
-      `,
-    ]);
+    const [statsRows, userRows, siteRows] = await withTimeout(
+      Promise.all([
+        database`
+          SELECT
+            (SELECT COUNT(*)::int FROM accounts) AS user_count,
+            (SELECT COUNT(*)::int FROM published_sites) AS website_count,
+            (SELECT COUNT(*)::int FROM published_sites
+              WHERE custom_domain IS NOT NULL) AS custom_domain_count,
+            (SELECT COUNT(*)::int FROM published_sites
+              WHERE created_at >= ${Date.now() - 7 * 24 * 60 * 60 * 1_000}) AS websites_this_week
+        `,
+        database`
+          SELECT accounts.id, accounts.name, accounts.email, accounts.created_at,
+                 COUNT(published_sites.id)::int AS website_count,
+                 MAX(published_sites.updated_at) AS last_website_update
+          FROM accounts
+          LEFT JOIN published_sites ON published_sites.user_id = accounts.id
+          GROUP BY accounts.id, accounts.name, accounts.email, accounts.created_at
+          ORDER BY accounts.created_at DESC
+        `,
+        database`
+          SELECT published_sites.slug, published_sites.title,
+                 published_sites.pages_json, published_sites.custom_domain,
+                 published_sites.domain_status, published_sites.created_at,
+                 published_sites.updated_at, accounts.name AS owner_name,
+                 accounts.email AS owner_email
+          FROM published_sites
+          LEFT JOIN accounts ON accounts.id = published_sites.user_id
+          ORDER BY published_sites.updated_at DESC
+        `,
+      ]),
+      12_000,
+    );
 
     const stats = (statsRows[0] || {}) as {
       user_count?: number | string;
@@ -143,10 +168,11 @@ export async function GET(request: Request) {
       },
       { headers: { 'Cache-Control': 'private, no-store' } },
     );
-  } catch {
-    return NextResponse.json(
-      { error: 'The admin dashboard could not be loaded.' },
-      { status: 503 },
-    );
+  } catch (error) {
+    const message =
+      error instanceof Error && error.message.includes('timed out')
+        ? 'The admin dashboard took too long to load. Try again.'
+        : 'The admin dashboard could not be loaded.';
+    return NextResponse.json({ error: message }, { status: 503 });
   }
 }

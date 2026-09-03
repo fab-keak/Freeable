@@ -398,6 +398,7 @@ export default function Home() {
   const [dashboardEditError, setDashboardEditError] = useState('');
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [adminStatus, setAdminStatus] = useState<DashboardStatus>('idle');
+  const [adminRefreshKey, setAdminRefreshKey] = useState(0);
   const [adminOverview, setAdminOverview] = useState<AdminOverview | null>(
     null,
   );
@@ -535,6 +536,11 @@ export default function Home() {
   useEffect(() => {
     if (!account?.isAdmin || !showAdminDashboard) return;
     const controller = new AbortController();
+    let timedOut = false;
+    const timeout = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 15_000);
     void fetch('/api/admin/overview', {
       cache: 'no-store',
       signal: controller.signal,
@@ -549,16 +555,27 @@ export default function Home() {
         setAdminStatus('ready');
       })
       .catch((overviewError) => {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted) {
+          if (!timedOut) return;
+          setAdminError(
+            'The admin dashboard took too long to load. Try again.',
+          );
+          setAdminStatus('error');
+          return;
+        }
         setAdminError(
           overviewError instanceof Error
             ? overviewError.message
             : 'The admin dashboard could not load.',
         );
         setAdminStatus('error');
-      });
-    return () => controller.abort();
-  }, [account, showAdminDashboard]);
+      })
+      .finally(() => window.clearTimeout(timeout));
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [account, showAdminDashboard, adminRefreshKey]);
 
   useEffect(() => {
     if (status !== 'building') return;
@@ -1138,8 +1155,7 @@ export default function Home() {
   function retryAdminDashboard() {
     setAdminError('');
     setAdminStatus('loading');
-    setShowAdminDashboard(false);
-    window.setTimeout(() => setShowAdminDashboard(true), 0);
+    setAdminRefreshKey((current) => current + 1);
   }
 
   async function signOut() {
