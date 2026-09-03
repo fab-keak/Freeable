@@ -28,8 +28,10 @@ import {
   Plus,
   Rocket,
   Search,
+  ShieldCheck,
   Smartphone,
   Sparkles,
+  Users,
   UserRound,
   WandSparkles,
   X,
@@ -47,6 +49,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { getDesignTemplate } from '@/lib/design-templates';
 import { Spinner } from '@/components/ui/spinner';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 
 type BuildStatus = 'idle' | 'building' | 'ready' | 'error';
@@ -96,7 +106,7 @@ type PromptImage = { id: string; name: string; path: string };
 type AuthMode = 'signup' | 'signin';
 type AuthIntent = 'account' | 'publish';
 type AuthStatus = 'idle' | 'submitting';
-type AccountUser = { name: string; email: string };
+type AccountUser = { name: string; email: string; isAdmin: boolean };
 type DashboardStatus = 'idle' | 'loading' | 'ready' | 'error';
 type DashboardSite = {
   slug: string;
@@ -112,6 +122,36 @@ type DashboardSite = {
 type EditableDashboardSite = DashboardSite & {
   sourcePrompt: string;
   pages: Array<{ title: string; slug: string; html: string }>;
+};
+type AdminUser = {
+  id: string;
+  name: string;
+  email: string;
+  websiteCount: number;
+  joinedAt: number;
+  lastWebsiteUpdate: number | null;
+};
+type AdminWebsite = {
+  slug: string;
+  title: string;
+  url: string;
+  customDomain: string | null;
+  domainStatus: string;
+  pageCount: number;
+  ownerName: string;
+  ownerEmail: string;
+  createdAt: number;
+  updatedAt: number;
+};
+type AdminOverview = {
+  stats: {
+    users: number;
+    websites: number;
+    customDomains: number;
+    websitesThisWeek: number;
+  };
+  users: AdminUser[];
+  websites: AdminWebsite[];
 };
 type XTrackingWindow = Window & {
   twq?: (...args: unknown[]) => void;
@@ -324,6 +364,13 @@ export default function Home() {
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [editingSiteSlug, setEditingSiteSlug] = useState('');
   const [dashboardEditError, setDashboardEditError] = useState('');
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+  const [adminStatus, setAdminStatus] = useState<DashboardStatus>('idle');
+  const [adminOverview, setAdminOverview] = useState<AdminOverview | null>(
+    null,
+  );
+  const [adminError, setAdminError] = useState('');
+  const [adminSearch, setAdminSearch] = useState('');
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signup');
   const [authIntent, setAuthIntent] = useState<AuthIntent>('account');
@@ -342,6 +389,15 @@ export default function Home() {
     sitePages.find((page) => page.id === selectedPageId) ?? sitePages[0];
   const html = selectedPage?.html ?? '';
   const unfinishedPages = sitePages.filter((page) => page.status !== 'ready');
+  const normalizedAdminSearch = adminSearch.trim().toLowerCase();
+  const filteredAdminUsers = (adminOverview?.users || []).filter((user) =>
+    `${user.name} ${user.email}`.toLowerCase().includes(normalizedAdminSearch),
+  );
+  const filteredAdminWebsites = (adminOverview?.websites || []).filter((site) =>
+    `${site.title} ${site.slug} ${site.ownerName} ${site.ownerEmail} ${site.customDomain || ''}`
+      .toLowerCase()
+      .includes(normalizedAdminSearch),
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -443,6 +499,34 @@ export default function Home() {
       });
     return () => controller.abort();
   }, [account, showDashboard, dashboardRefreshKey]);
+
+  useEffect(() => {
+    if (!account?.isAdmin || !showAdminDashboard) return;
+    const controller = new AbortController();
+    void fetch('/api/admin/overview', {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const data = (await response.json()) as AdminOverview & {
+          error?: string;
+        };
+        if (!response.ok)
+          throw new Error(data.error || 'The admin dashboard could not load.');
+        setAdminOverview(data);
+        setAdminStatus('ready');
+      })
+      .catch((overviewError) => {
+        if (controller.signal.aborted) return;
+        setAdminError(
+          overviewError instanceof Error
+            ? overviewError.message
+            : 'The admin dashboard could not load.',
+        );
+        setAdminStatus('error');
+      });
+    return () => controller.abort();
+  }, [account, showAdminDashboard]);
 
   useEffect(() => {
     if (status !== 'building') return;
@@ -1013,10 +1097,26 @@ export default function Home() {
     setDashboardRefreshKey((current) => current + 1);
   }
 
+  function openAdminDashboard() {
+    setAdminError('');
+    setAdminStatus('loading');
+    setShowAdminDashboard(true);
+  }
+
+  function retryAdminDashboard() {
+    setAdminError('');
+    setAdminStatus('loading');
+    setShowAdminDashboard(false);
+    window.setTimeout(() => setShowAdminDashboard(true), 0);
+  }
+
   async function signOut() {
     await fetch('/api/auth', { method: 'DELETE' }).catch(() => undefined);
     setAccount(null);
     setShowDashboard(false);
+    setShowAdminDashboard(false);
+    setAdminOverview(null);
+    setAdminStatus('idle');
     setDashboardSites([]);
     setDashboardStatus('idle');
   }
@@ -1455,6 +1555,240 @@ export default function Home() {
     );
   }
 
+  if (status === 'idle' && account?.isAdmin && showAdminDashboard) {
+    return (
+      <main className="admin-shell">
+        <header className="dashboard-header admin-header">
+          <button
+            type="button"
+            className="landing-brand dashboard-brand"
+            onClick={() => setShowAdminDashboard(false)}
+            aria-label="Back to Freeable workspace"
+          >
+            <span className="landing-brand-mark" aria-hidden="true">
+              <FreeableLogo />
+            </span>
+            <strong>Freeable</strong>
+          </button>
+          <div className="dashboard-account-actions">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAdminDashboard(false)}
+            >
+              <ChevronLeft /> Workspace
+            </Button>
+            <div className="landing-account" title={account.email}>
+              <ShieldCheck />
+              <span>{account.name}</span>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => void signOut()}>
+              <LogOut /> Sign out
+            </Button>
+          </div>
+        </header>
+
+        <div className="admin-content">
+          <section className="admin-intro">
+            <div>
+              <p className="eyebrow">Admin dashboard</p>
+              <h1>Freeable overview</h1>
+              <p>Monitor every account and published website in one place.</p>
+            </div>
+            <label className="admin-search" htmlFor="admin-search">
+              <span className="sr-only">Search users and websites</span>
+              <Search />
+              <Input
+                id="admin-search"
+                value={adminSearch}
+                onChange={(event) => setAdminSearch(event.target.value)}
+                placeholder="Search users, websites, or domains…"
+              />
+            </label>
+          </section>
+
+          {adminStatus === 'loading' && (
+            <div className="admin-loading" aria-live="polite">
+              <Spinner /> Loading Freeable activity…
+            </div>
+          )}
+
+          {adminStatus === 'error' && (
+            <div className="dashboard-error admin-load-error" role="alert">
+              <p>{adminError}</p>
+              <Button variant="outline" size="sm" onClick={retryAdminDashboard}>
+                Try again
+              </Button>
+            </div>
+          )}
+
+          {adminStatus === 'ready' && adminOverview && (
+            <>
+              <section className="admin-metrics" aria-label="Key totals">
+                <article>
+                  <span>
+                    <Users /> Accounts
+                  </span>
+                  <strong>{adminOverview.stats.users}</strong>
+                  <small>Registered users</small>
+                </article>
+                <article>
+                  <span>
+                    <LayoutGrid /> Websites
+                  </span>
+                  <strong>{adminOverview.stats.websites}</strong>
+                  <small>Published websites</small>
+                </article>
+                <article>
+                  <span>
+                    <Globe2 /> Domains
+                  </span>
+                  <strong>{adminOverview.stats.customDomains}</strong>
+                  <small>Custom domains</small>
+                </article>
+                <article>
+                  <span>
+                    <Sparkles /> Last 7 days
+                  </span>
+                  <strong>{adminOverview.stats.websitesThisWeek}</strong>
+                  <small>New websites</small>
+                </article>
+              </section>
+
+              <section className="admin-section" aria-labelledby="admin-sites">
+                <div className="admin-section-heading">
+                  <div>
+                    <p className="eyebrow">Published websites</p>
+                    <h2 id="admin-sites">All websites</h2>
+                  </div>
+                  <span>
+                    {filteredAdminWebsites.length} of{' '}
+                    {adminOverview.websites.length}
+                  </span>
+                </div>
+                <div className="admin-table-card">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Website</TableHead>
+                        <TableHead>Owner</TableHead>
+                        <TableHead>Pages</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Updated</TableHead>
+                        <TableHead>
+                          <span className="sr-only">Open</span>
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAdminWebsites.map((site) => (
+                        <TableRow key={site.slug}>
+                          <TableCell>
+                            <strong>{site.title}</strong>
+                            <small>{new URL(site.url).host}</small>
+                          </TableCell>
+                          <TableCell>
+                            <span>{site.ownerName}</span>
+                            <small>{site.ownerEmail || 'No owner'}</small>
+                          </TableCell>
+                          <TableCell>{site.pageCount}</TableCell>
+                          <TableCell>
+                            <span
+                              className={`admin-status ${
+                                site.customDomain &&
+                                site.domainStatus !== 'dns_verified'
+                                  ? 'attention'
+                                  : 'live'
+                              }`}
+                            >
+                              {site.customDomain &&
+                              site.domainStatus !== 'dns_verified'
+                                ? 'Domain pending'
+                                : 'Live'}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {formatDashboardDate(site.updatedAt)}
+                          </TableCell>
+                          <TableCell>
+                            <a
+                              href={site.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              aria-label={`Open ${site.title}`}
+                            >
+                              <ExternalLink />
+                            </a>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {!filteredAdminWebsites.length && (
+                    <p className="admin-empty">
+                      No websites match your search.
+                    </p>
+                  )}
+                </div>
+              </section>
+
+              <section className="admin-section" aria-labelledby="admin-users">
+                <div className="admin-section-heading">
+                  <div>
+                    <p className="eyebrow">Registered accounts</p>
+                    <h2 id="admin-users">All users</h2>
+                  </div>
+                  <span>
+                    {filteredAdminUsers.length} of {adminOverview.users.length}
+                  </span>
+                </div>
+                <div className="admin-table-card">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>User</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Websites</TableHead>
+                        <TableHead>Joined</TableHead>
+                        <TableHead>Last website update</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAdminUsers.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell>
+                            <strong>{user.name}</strong>
+                          </TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>{user.websiteCount}</TableCell>
+                          <TableCell>
+                            {formatDashboardDate(user.joinedAt)}
+                          </TableCell>
+                          <TableCell>
+                            {user.lastWebsiteUpdate
+                              ? formatDashboardDate(user.lastWebsiteUpdate)
+                              : '—'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {!filteredAdminUsers.length && (
+                    <p className="admin-empty">No users match your search.</p>
+                  )}
+                </div>
+              </section>
+            </>
+          )}
+        </div>
+
+        <footer className="dashboard-footer">
+          <span>Freeable administration</span>
+        </footer>
+      </main>
+    );
+  }
+
   if (status === 'idle' && account && showDashboard) {
     return (
       <main className="dashboard-shell">
@@ -1471,6 +1805,11 @@ export default function Home() {
             <strong>Freeable</strong>
           </button>
           <div className="dashboard-account-actions">
+            {account.isAdmin && (
+              <Button variant="ghost" size="sm" onClick={openAdminDashboard}>
+                <ShieldCheck /> Admin
+              </Button>
+            )}
             <div className="landing-account" title={account.email}>
               <UserRound />
               <span>{account.name}</span>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { isAdminEmail } from '@/lib/admin';
 import {
   AccountError,
   deleteSession,
@@ -16,7 +17,9 @@ export async function GET(request: Request) {
   try {
     const user = await getAuthenticatedUser(request);
     return NextResponse.json(
-      { user },
+      {
+        user: user ? { ...user, isAdmin: isAdminEmail(user.email) } : null,
+      },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch {
@@ -54,7 +57,12 @@ export async function POST(request: Request) {
       mode === 'signin'
         ? await signIn({ email, password })
         : await signUp({ name, email, password });
-    const response = NextResponse.json({ user: result.user });
+    const response = NextResponse.json({
+      user: {
+        ...result.user,
+        isAdmin: isAdminEmail(result.user.email),
+      },
+    });
     response.cookies.set(
       getSessionCookieName(),
       result.token,

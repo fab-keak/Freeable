@@ -27,6 +27,8 @@ Copy the remaining names from `.env.example` into Vercel:
 - `CHEAPER_INFERENCE_API_KEY`: the server-only Cheaper Inference key.
 - `SITE_URL`: the production URL of the builder.
 - `BUILDER_HOSTS`: comma-separated builder hostnames, without protocols.
+- `ADMIN_EMAILS`: comma-separated account emails allowed to view all users and
+  published websites in the admin dashboard.
 - `NEXT_PUBLIC_DOMAIN_TARGET`: the CNAME target shown by Vercel when a custom
   domain is added.
 - `NEXT_PUBLIC_FREE_SITE_DOMAIN`: the base hostname used for free customer
