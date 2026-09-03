@@ -24,6 +24,7 @@ import {
   LogOut,
   Monitor,
   Palette,
+  PencilLine,
   Plus,
   Rocket,
   Search,
@@ -107,6 +108,10 @@ type DashboardSite = {
   pageCount: number;
   createdAt: number;
   updatedAt: number;
+};
+type EditableDashboardSite = DashboardSite & {
+  sourcePrompt: string;
+  pages: Array<{ title: string; slug: string; html: string }>;
 };
 type XTrackingWindow = Window & {
   twq?: (...args: unknown[]) => void;
@@ -317,6 +322,8 @@ export default function Home() {
     useState<DashboardStatus>('idle');
   const [dashboardError, setDashboardError] = useState('');
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
+  const [editingSiteSlug, setEditingSiteSlug] = useState('');
+  const [dashboardEditError, setDashboardEditError] = useState('');
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signup');
   const [authIntent, setAuthIntent] = useState<AuthIntent>('account');
@@ -926,6 +933,80 @@ export default function Home() {
     setShowDashboard(false);
   }
 
+  async function editWebsite(siteSlugToEdit: string) {
+    if (editingSiteSlug) return;
+    setEditingSiteSlug(siteSlugToEdit);
+    setDashboardEditError('');
+
+    try {
+      const response = await fetch(
+        `/api/sites/${encodeURIComponent(siteSlugToEdit)}`,
+        { cache: 'no-store' },
+      );
+      const data = (await response.json()) as {
+        error?: string;
+        site?: EditableDashboardSite;
+      };
+      if (!response.ok || !data.site) {
+        throw new Error(data.error || 'This website could not be opened.');
+      }
+
+      const site = data.site;
+      const restoredPages: SitePage[] = site.pages.map((page, index) => ({
+        id: page.slug === '' ? 'home' : `saved-${index}-${page.slug}`,
+        title: page.title || titleFromSlug(page.slug),
+        slug: page.slug,
+        html: page.html,
+        status: 'ready',
+      }));
+      const homePage = restoredPages.find((page) => page.slug === '');
+      if (!homePage) throw new Error('This website has no homepage to edit.');
+
+      requestRef.current?.abort();
+      for (const controller of pageRequestsRef.current.values())
+        controller.abort();
+      pageRequestsRef.current.clear();
+      setPrompt('');
+      setPromptImages([]);
+      setActiveImages([]);
+      setRefinement('');
+      setRefinementImages([]);
+      setUploadError('');
+      setError('');
+      setSitePages(restoredPages);
+      setSelectedPageId(homePage.id);
+      setActivePrompt(site.sourcePrompt || `Update the ${site.title} website.`);
+      setStatus('ready');
+      setStage(stages.length);
+      setViewport('desktop');
+      setSiteSlug(site.slug);
+      setPublishedUrl(site.url);
+      setPublishStatus('published');
+      setPublishError('');
+      setPublishMode(site.customDomain ? 'custom' : 'free');
+      setCustomDomain(site.customDomain || '');
+      setDomainStatus(
+        site.customDomain && site.domainStatus === 'dns_verified'
+          ? 'dns_verified'
+          : site.customDomain
+            ? 'pending_dns'
+            : 'idle',
+      );
+      setDnsRecord(null);
+      setDomainError('');
+      setTemplateId('');
+      setShowDashboard(false);
+    } catch (editError) {
+      setDashboardEditError(
+        editError instanceof Error
+          ? editError.message
+          : 'This website could not be opened.',
+      );
+    } finally {
+      setEditingSiteSlug('');
+    }
+  }
+
   function retryDashboard() {
     setDashboardError('');
     setDashboardStatus('loading');
@@ -1515,56 +1596,88 @@ export default function Home() {
             )}
 
             {dashboardStatus === 'ready' && (
-              <div className="website-grid">
-                <button
-                  type="button"
-                  className="new-website-card"
-                  onClick={createAnotherWebsite}
-                >
-                  <span>
-                    <Plus />
-                  </span>
-                  <strong>Create a new website</strong>
-                  <small>Start with a fresh prompt</small>
-                </button>
+              <>
+                {dashboardEditError && (
+                  <div className="dashboard-edit-error" role="alert">
+                    <span>{dashboardEditError}</span>
+                    <button
+                      type="button"
+                      onClick={() => setDashboardEditError('')}
+                      aria-label="Dismiss error"
+                    >
+                      <X />
+                    </button>
+                  </div>
+                )}
+                <div className="website-grid">
+                  <button
+                    type="button"
+                    className="new-website-card"
+                    onClick={createAnotherWebsite}
+                  >
+                    <span>
+                      <Plus />
+                    </span>
+                    <strong>Create a new website</strong>
+                    <small>Start with a fresh prompt</small>
+                  </button>
 
-                {dashboardSites.map((site) => (
-                  <article className="website-card" key={site.slug}>
-                    <div className="website-card-top">
-                      <span>
-                        <LayoutGrid />
-                      </span>
-                      <small
-                        className={
-                          site.customDomain &&
+                  {dashboardSites.map((site) => (
+                    <article className="website-card" key={site.slug}>
+                      <div className="website-card-top">
+                        <span>
+                          <LayoutGrid />
+                        </span>
+                        <small
+                          className={
+                            site.customDomain &&
+                            site.domainStatus !== 'dns_verified'
+                              ? 'needs-domain'
+                              : ''
+                          }
+                        >
+                          {site.customDomain &&
                           site.domainStatus !== 'dns_verified'
-                            ? 'needs-domain'
-                            : ''
-                        }
-                      >
-                        {site.customDomain &&
-                        site.domainStatus !== 'dns_verified'
-                          ? 'DNS setup needed'
-                          : 'Live'}
-                      </small>
-                    </div>
-                    <div className="website-card-copy">
-                      <h3>{site.title}</h3>
-                      <p>{new URL(site.url).host}</p>
-                    </div>
-                    <div className="website-card-meta">
-                      <span>
-                        <FileText /> {site.pageCount}{' '}
-                        {site.pageCount === 1 ? 'page' : 'pages'}
-                      </span>
-                      <span>Updated {formatDashboardDate(site.updatedAt)}</span>
-                    </div>
-                    <a href={site.url} target="_blank" rel="noreferrer">
-                      View website <ExternalLink />
-                    </a>
-                  </article>
-                ))}
-              </div>
+                            ? 'DNS setup needed'
+                            : 'Live'}
+                        </small>
+                      </div>
+                      <div className="website-card-copy">
+                        <h3>{site.title}</h3>
+                        <p>{new URL(site.url).host}</p>
+                      </div>
+                      <div className="website-card-meta">
+                        <span>
+                          <FileText /> {site.pageCount}{' '}
+                          {site.pageCount === 1 ? 'page' : 'pages'}
+                        </span>
+                        <span>
+                          Updated {formatDashboardDate(site.updatedAt)}
+                        </span>
+                      </div>
+                      <div className="website-card-actions">
+                        <button
+                          type="button"
+                          onClick={() => void editWebsite(site.slug)}
+                          disabled={Boolean(editingSiteSlug)}
+                        >
+                          {editingSiteSlug === site.slug ? (
+                            <Spinner />
+                          ) : (
+                            <PencilLine />
+                          )}
+                          {editingSiteSlug === site.slug
+                            ? 'Opening…'
+                            : 'Edit website'}
+                        </button>
+                        <a href={site.url} target="_blank" rel="noreferrer">
+                          View <ExternalLink />
+                        </a>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </>
             )}
           </section>
         </div>

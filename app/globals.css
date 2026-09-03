@@ -1703,6 +1703,36 @@ body {
   flex-direction: column;
 }
 
+.dashboard-edit-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgb(255 126 126 / 28%);
+  border-radius: 5px;
+  color: #ffaaaa;
+  background: rgb(255 92 92 / 7%);
+  font-size: 9px;
+}
+
+.dashboard-edit-error button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.dashboard-edit-error svg {
+  width: 13px;
+}
+
 .website-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1858,11 +1888,19 @@ body {
   width: 11px;
 }
 
-.website-card > a {
+.website-card-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+}
+
+.website-card-actions > button,
+.website-card-actions > a {
   display: flex;
   height: 34px;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 6px;
   padding: 0 10px;
   border: 1px solid rgb(242 246 244 / 13%);
   border-radius: 4px;
@@ -1871,16 +1909,33 @@ body {
   font-size: 9px;
   font-weight: 600;
   text-decoration: none;
+  cursor: pointer;
 }
 
-.website-card > a:hover,
-.website-card > a:focus-visible {
+.website-card-actions > button {
+  border-color: rgb(216 255 0 / 38%);
+  color: #081014;
+  background: #d8ff00;
+}
+
+.website-card-actions > button:hover,
+.website-card-actions > button:focus-visible {
+  background: #e2ff52;
+}
+
+.website-card-actions > button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.website-card-actions > a:hover,
+.website-card-actions > a:focus-visible {
   border-color: rgb(216 255 0 / 36%);
   color: #d8ff00;
   background: rgb(216 255 0 / 5%);
 }
 
-.website-card > a svg {
+.website-card-actions svg {
   width: 12px;
 }
 

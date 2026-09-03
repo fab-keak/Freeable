@@ -182,11 +182,13 @@ export async function POST(request: Request) {
   const pagesJson = JSON.stringify(pages);
   const now = Date.now();
   let dnsRecord: DomainDnsRecord | null = null;
+  let connectedCustomDomain = false;
 
   if (customDomain) {
     try {
       const configuration = await addProjectDomain(customDomain);
       dnsRecord = configuration.record;
+      connectedCustomDomain = configuration.connected;
     } catch (error) {
       return NextResponse.json(
         {
@@ -205,7 +207,7 @@ export async function POST(request: Request) {
       UPDATE published_sites
       SET title = ${title}, html = ${homePage.html}, pages_json = ${pagesJson}, source_prompt = ${prompt},
           custom_domain = ${customDomain || null},
-          domain_status = ${customDomain ? 'pending_dns' : 'none'},
+          domain_status = ${customDomain ? (connectedCustomDomain ? 'dns_verified' : 'pending_dns') : 'none'},
           updated_at = ${now}
       WHERE slug = ${requestedSlug}
         AND user_id = ${user.id}
@@ -219,7 +221,11 @@ export async function POST(request: Request) {
         title,
         updated: true,
         customDomain: customDomain || null,
-        domainStatus: customDomain ? 'pending_dns' : 'none',
+        domainStatus: customDomain
+          ? connectedCustomDomain
+            ? 'dns_verified'
+            : 'pending_dns'
+          : 'none',
         dnsRecord,
       });
     }
@@ -232,7 +238,7 @@ export async function POST(request: Request) {
         (id, slug, title, html, pages_json, source_prompt, custom_domain, domain_status, user_id, created_at, updated_at)
       VALUES
         (${crypto.randomUUID()}, ${slug}, ${title}, ${homePage.html}, ${pagesJson}, ${prompt},
-         ${customDomain || null}, ${customDomain ? 'pending_dns' : 'none'}, ${user.id},
+         ${customDomain || null}, ${customDomain ? (connectedCustomDomain ? 'dns_verified' : 'pending_dns') : 'none'}, ${user.id},
          ${now}, ${now})
     `;
   } catch {
@@ -248,7 +254,11 @@ export async function POST(request: Request) {
     title,
     updated: false,
     customDomain: customDomain || null,
-    domainStatus: customDomain ? 'pending_dns' : 'none',
+    domainStatus: customDomain
+      ? connectedCustomDomain
+        ? 'dns_verified'
+        : 'pending_dns'
+      : 'none',
     dnsRecord,
   });
 }
