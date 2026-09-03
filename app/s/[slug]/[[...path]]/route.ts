@@ -29,9 +29,13 @@ export async function GET(
   const page = selectPublishedPage(pages, path.join('/'));
   if (!page) return new Response('Page not found', { status: 404 });
 
-  return createPublishedSiteResponse(page, pages, `/s/${slug}`, {
-    endpointOrigin: new URL(request.url).origin,
-    siteSlug: slug,
-    pagePath: page.slug,
-  });
+  const requestUrl = new URL(request.url);
+  const analytics = requestUrl.searchParams.has('freeable_preview')
+    ? undefined
+    : {
+        endpointOrigin: requestUrl.origin,
+        siteSlug: slug,
+        pagePath: page.slug,
+      };
+  return createPublishedSiteResponse(page, pages, `/s/${slug}`, analytics);
 }

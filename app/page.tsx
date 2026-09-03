@@ -157,6 +157,17 @@ type AdminOverview = {
   users: AdminUser[];
   websites: AdminWebsite[];
 };
+type ShowcaseSite = {
+  slug: string;
+  title: string;
+  url: string;
+  visits: number;
+  createdAt: number;
+};
+type ShowcaseData = {
+  popular: ShowcaseSite[];
+  latest: ShowcaseSite[];
+};
 type XTrackingWindow = Window & {
   twq?: (...args: unknown[]) => void;
 };
@@ -246,6 +257,72 @@ function formatTrafficCount(value: number) {
     notation: value >= 10_000 ? 'compact' : 'standard',
     maximumFractionDigits: 1,
   }).format(value);
+}
+
+function getShowcaseHost(url: string) {
+  try {
+    return new URL(url).host.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
+function getShowcasePreviewUrl(url: string) {
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}freeable_preview=1`;
+}
+
+function ShowcaseCard({
+  site,
+  index,
+  mode,
+}: {
+  site: ShowcaseSite;
+  index: number;
+  mode: 'popular' | 'latest';
+}) {
+  return (
+    <article className="showcase-card">
+      <div className="showcase-preview">
+        <iframe
+          src={getShowcasePreviewUrl(site.url)}
+          title={`${site.title} website preview`}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          sandbox=""
+          tabIndex={-1}
+        />
+        <a
+          className="showcase-preview-link"
+          href={site.url}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`Visit ${site.title}`}
+        />
+        <span className="showcase-rank" aria-hidden="true">
+          {String(index + 1).padStart(2, '0')}
+        </span>
+      </div>
+      <div className="showcase-card-copy">
+        <div className="showcase-card-heading">
+          <h3>
+            <a href={site.url} target="_blank" rel="noreferrer">
+              {site.title}
+            </a>
+          </h3>
+          <ExternalLink aria-hidden="true" />
+        </div>
+        <div className="showcase-card-meta">
+          <span>{getShowcaseHost(site.url)}</span>
+          <span>
+            {mode === 'popular'
+              ? `${formatTrafficCount(site.visits)} ${site.visits === 1 ? 'visit' : 'visits'}`
+              : `Launched ${formatDashboardDate(site.createdAt)}`}
+          </span>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 function createAddressSuggestion(value: string) {
@@ -415,6 +492,12 @@ export default function Home() {
   );
   const [adminError, setAdminError] = useState('');
   const [adminSearch, setAdminSearch] = useState('');
+  const [showcase, setShowcase] = useState<ShowcaseData>({
+    popular: [],
+    latest: [],
+  });
+  const [showcaseStatus, setShowcaseStatus] =
+    useState<DashboardStatus>('loading');
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signup');
   const [authIntent, setAuthIntent] = useState<AuthIntent>('account');
@@ -443,6 +526,29 @@ export default function Home() {
       .toLowerCase()
       .includes(normalizedAdminSearch),
   );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch('/api/showcase', {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const data = (await response.json()) as ShowcaseData & {
+          error?: string;
+        };
+        if (!response.ok)
+          throw new Error(data.error || 'Showcase unavailable.');
+        setShowcase({
+          popular: data.popular || [],
+          latest: data.latest || [],
+        });
+        setShowcaseStatus('ready');
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setShowcaseStatus('error');
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -2187,104 +2293,197 @@ export default function Home() {
             </div>
           </header>
 
-          <section className="prompt-card" aria-labelledby="builder-heading">
-            <div className="landing-intro">
-              <p className="eyebrow">From idea to live website</p>
-              <h1 id="builder-heading">
-                Build a beautiful
-                <br />
-                <span>website for free.</span>
-              </h1>
-              <p className="landing-copy">
-                Tell Freeable what you want. Add visual references if you have
-                them, then let AI design, code, and prepare the site for launch.
-              </p>
-            </div>
-
-            <form className="prompt-form" onSubmit={handleSubmit}>
-              <label className="sr-only" htmlFor="site-prompt">
-                Describe the website you want to build
-              </label>
-              <Textarea
-                id="site-prompt"
-                name="prompt"
-                value={prompt}
-                onChange={(event) => {
-                  setPrompt(event.target.value);
-                  if (error) setError('');
-                }}
-                onKeyDown={(event) => {
-                  if (
-                    event.key !== 'Enter' ||
-                    event.shiftKey ||
-                    event.nativeEvent.isComposing
-                  )
-                    return;
-                  event.preventDefault();
-                  event.currentTarget.form?.requestSubmit();
-                }}
-                className="prompt-input"
-                placeholder="A serene portfolio for an architecture studio in Copenhagen..."
-              />
-              {renderAttachments('prompt', promptImages)}
-              <div className="prompt-footer">
-                <div className="prompt-tools">
-                  <label
-                    className={`attach-control ${uploadingTarget === 'prompt' ? 'uploading' : ''}`}
-                  >
-                    {uploadingTarget === 'prompt' ? <Spinner /> : <ImagePlus />}
-                    <span>
-                      {uploadingTarget === 'prompt'
-                        ? 'Uploading'
-                        : 'Add images'}
-                    </span>
-                    <input
-                      className="sr-only"
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
-                      multiple
-                      disabled={
-                        uploadingTarget !== null ||
-                        promptImages.length >= maxAttachedImages
-                      }
-                      onChange={(event) => {
-                        void uploadImages(event.currentTarget.files, 'prompt');
-                        event.currentTarget.value = '';
-                      }}
-                    />
-                  </label>
-                  <span
-                    className={error || uploadError ? 'prompt-error' : ''}
-                    aria-live="polite"
-                  >
-                    {error ||
-                      uploadError ||
-                      `Up to ${maxAttachedImages} images`}
-                  </span>
-                </div>
-                <Button
-                  type="submit"
-                  size="icon-lg"
-                  aria-label="Build website"
-                  className="build-button"
-                  disabled={!prompt.trim() || uploadingTarget === 'prompt'}
-                >
-                  <ArrowUp />
-                </Button>
+          <section className="landing-hero">
+            <div className="prompt-card" aria-labelledby="builder-heading">
+              <div className="landing-intro">
+                <p className="eyebrow">From idea to live website</p>
+                <h1 id="builder-heading">
+                  Build a beautiful
+                  <br />
+                  <span>website for free.</span>
+                </h1>
+                <p className="landing-copy">
+                  Tell Freeable what you want. Add visual references if you have
+                  them, then let AI design, code, and prepare the site for
+                  launch.
+                </p>
               </div>
-            </form>
 
-            <div className="landing-proof" aria-label="Builder features">
+              <form className="prompt-form" onSubmit={handleSubmit}>
+                <label className="sr-only" htmlFor="site-prompt">
+                  Describe the website you want to build
+                </label>
+                <Textarea
+                  id="site-prompt"
+                  name="prompt"
+                  value={prompt}
+                  onChange={(event) => {
+                    setPrompt(event.target.value);
+                    if (error) setError('');
+                  }}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key !== 'Enter' ||
+                      event.shiftKey ||
+                      event.nativeEvent.isComposing
+                    )
+                      return;
+                    event.preventDefault();
+                    event.currentTarget.form?.requestSubmit();
+                  }}
+                  className="prompt-input"
+                  placeholder="A serene portfolio for an architecture studio in Copenhagen..."
+                />
+                {renderAttachments('prompt', promptImages)}
+                <div className="prompt-footer">
+                  <div className="prompt-tools">
+                    <label
+                      className={`attach-control ${uploadingTarget === 'prompt' ? 'uploading' : ''}`}
+                    >
+                      {uploadingTarget === 'prompt' ? (
+                        <Spinner />
+                      ) : (
+                        <ImagePlus />
+                      )}
+                      <span>
+                        {uploadingTarget === 'prompt'
+                          ? 'Uploading'
+                          : 'Add images'}
+                      </span>
+                      <input
+                        className="sr-only"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                        multiple
+                        disabled={
+                          uploadingTarget !== null ||
+                          promptImages.length >= maxAttachedImages
+                        }
+                        onChange={(event) => {
+                          void uploadImages(
+                            event.currentTarget.files,
+                            'prompt',
+                          );
+                          event.currentTarget.value = '';
+                        }}
+                      />
+                    </label>
+                    <span
+                      className={error || uploadError ? 'prompt-error' : ''}
+                      aria-live="polite"
+                    >
+                      {error ||
+                        uploadError ||
+                        `Up to ${maxAttachedImages} images`}
+                    </span>
+                  </div>
+                  <Button
+                    type="submit"
+                    size="icon-lg"
+                    aria-label="Build website"
+                    className="build-button"
+                    disabled={!prompt.trim() || uploadingTarget === 'prompt'}
+                  >
+                    <ArrowUp />
+                  </Button>
+                </div>
+              </form>
+
+              <div className="landing-proof" aria-label="Builder features">
+                <span>
+                  <Sparkles /> GPT-5.6 Sol
+                </span>
+                <span>
+                  <Palette /> 8 curated directions
+                </span>
+                <span>
+                  <Rocket /> One-click publishing
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section
+            className="showcase-shell"
+            aria-label="Websites made with Freeable"
+          >
+            <div className="showcase-intro">
+              <p>Made with Freeable</p>
+              <h2>See what people are building.</h2>
               <span>
-                <Sparkles /> GPT-5.6 Sol
-              </span>
-              <span>
-                <Palette /> 8 curated directions
-              </span>
-              <span>
-                <Rocket /> One-click publishing
+                Real websites, generated from an idea and published in minutes.
               </span>
             </div>
+
+            {showcaseStatus === 'loading' && (
+              <div
+                className="showcase-loading"
+                aria-label="Loading website showcase"
+              >
+                {Array.from({ length: 3 }, (_, index) => (
+                  <span key={index} />
+                ))}
+              </div>
+            )}
+
+            {showcaseStatus === 'ready' &&
+              !showcase.popular.length &&
+              !showcase.latest.length && (
+                <p className="showcase-unavailable">
+                  The first community websites will appear here as they launch.
+                </p>
+              )}
+
+            {showcaseStatus === 'ready' &&
+              (showcase.popular.length > 0 || showcase.latest.length > 0) && (
+                <>
+                  <div className="showcase-group">
+                    <div className="showcase-heading">
+                      <div>
+                        <h3>Most popular</h3>
+                        <p>Ranked by visits from across the web.</p>
+                      </div>
+                      <span>Community favorites</span>
+                    </div>
+                    <div className="showcase-grid">
+                      {showcase.popular.map((site, index) => (
+                        <ShowcaseCard
+                          key={`popular-${site.slug}`}
+                          site={site}
+                          index={index}
+                          mode="popular"
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="showcase-group">
+                    <div className="showcase-heading">
+                      <div>
+                        <h3>Recently launched</h3>
+                        <p>The latest websites published with Freeable.</p>
+                      </div>
+                      <span>Fresh from the builder</span>
+                    </div>
+                    <div className="showcase-grid">
+                      {showcase.latest.map((site, index) => (
+                        <ShowcaseCard
+                          key={`latest-${site.slug}`}
+                          site={site}
+                          index={index}
+                          mode="latest"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+            {showcaseStatus === 'error' && (
+              <p className="showcase-unavailable">
+                The community showcase is refreshing. Check back shortly.
+              </p>
+            )}
           </section>
 
           <footer className="landing-attribution">
