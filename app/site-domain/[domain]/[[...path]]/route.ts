@@ -9,7 +9,7 @@ const domainPattern =
   /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ domain: string; path?: string[] }> },
 ) {
   const { domain: rawDomain, path = [] } = await context.params;
@@ -19,11 +19,16 @@ export async function GET(
 
   const database = await getPublishedSitesDatabase();
   const rows = (await database`
-    SELECT title, html, pages_json
+    SELECT slug, title, html, pages_json
     FROM published_sites
     WHERE custom_domain = ${domain}
     LIMIT 1
-  `) as Array<{ title: string; html: string; pages_json: string | null }>;
+  `) as Array<{
+    slug: string;
+    title: string;
+    html: string;
+    pages_json: string | null;
+  }>;
   const site = rows[0];
   if (!site) return new Response('Site not found', { status: 404 });
 
@@ -31,5 +36,9 @@ export async function GET(
   const page = selectPublishedPage(pages, path.join('/'));
   if (!page) return new Response('Page not found', { status: 404 });
 
-  return createPublishedSiteResponse(page, pages);
+  return createPublishedSiteResponse(page, pages, '', {
+    endpointOrigin: new URL(request.url).origin,
+    siteSlug: site.slug,
+    pagePath: page.slug,
+  });
 }

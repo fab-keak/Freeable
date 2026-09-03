@@ -32,10 +32,12 @@ async function isPublishedSitesSchemaReady(sql: ReturnType<typeof postgres>) {
       to_regclass('public.user_sessions') IS NOT NULL AS sessions_ready,
       to_regclass('public.auth_attempts') IS NOT NULL AS attempts_ready,
       to_regclass('public.domain_orders') IS NOT NULL AS orders_ready,
+      to_regclass('public.site_traffic_daily') IS NOT NULL AS traffic_ready,
       to_regclass('public.idx_accounts_email') IS NOT NULL AS accounts_index_ready,
       to_regclass('public.idx_published_sites_slug') IS NOT NULL AS slug_index_ready,
       to_regclass('public.idx_published_sites_custom_domain') IS NOT NULL AS domain_index_ready,
       to_regclass('public.idx_published_sites_user') IS NOT NULL AS sites_user_index_ready,
+      to_regclass('public.idx_site_traffic_daily_date') IS NOT NULL AS traffic_index_ready,
       (
         SELECT COUNT(*) = 4
         FROM information_schema.columns
@@ -143,6 +145,19 @@ export async function getPublishedSitesDatabase() {
     await sql.unsafe(
       `CREATE INDEX IF NOT EXISTS idx_domain_orders_domain
        ON domain_orders (domain, status)`,
+    );
+    await sql.unsafe(
+      `CREATE TABLE IF NOT EXISTS site_traffic_daily (
+        site_slug TEXT NOT NULL REFERENCES published_sites(slug) ON DELETE CASCADE,
+        view_date TEXT NOT NULL,
+        page_path TEXT NOT NULL DEFAULT '',
+        views BIGINT NOT NULL DEFAULT 0,
+        PRIMARY KEY (site_slug, view_date, page_path)
+      )`,
+    );
+    await sql.unsafe(
+      `CREATE INDEX IF NOT EXISTS idx_site_traffic_daily_date
+       ON site_traffic_daily (view_date DESC)`,
     );
     await sql.unsafe(
       `ALTER TABLE published_sites

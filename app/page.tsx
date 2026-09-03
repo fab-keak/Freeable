@@ -6,6 +6,7 @@ import { upload } from '@vercel/blob/client';
 import { type SyntheticEvent, useEffect, useRef, useState } from 'react';
 import {
   ArrowUp,
+  ChartNoAxesColumn,
   Check,
   ChevronLeft,
   Circle,
@@ -140,6 +141,8 @@ type AdminWebsite = {
   pageCount: number;
   ownerName: string;
   ownerEmail: string;
+  totalViews: number;
+  viewsLast7Days: number;
   createdAt: number;
   updatedAt: number;
 };
@@ -148,7 +151,8 @@ type AdminOverview = {
     users: number;
     websites: number;
     customDomains: number;
-    websitesThisWeek: number;
+    totalViews: number;
+    viewsLast7Days: number;
   };
   users: AdminUser[];
   websites: AdminWebsite[];
@@ -235,6 +239,13 @@ function formatDashboardDate(timestamp: number) {
         ? undefined
         : 'numeric',
   }).format(new Date(timestamp));
+}
+
+function formatTrafficCount(value: number) {
+  return new Intl.NumberFormat('en-US', {
+    notation: value >= 10_000 ? 'compact' : 'standard',
+    maximumFractionDigits: 1,
+  }).format(value);
 }
 
 function createAddressSuggestion(value: string) {
@@ -1694,10 +1705,15 @@ export default function Home() {
                 </article>
                 <article>
                   <span>
-                    <Sparkles /> Last 7 days
+                    <ChartNoAxesColumn /> Page views
                   </span>
-                  <strong>{adminOverview.stats.websitesThisWeek}</strong>
-                  <small>New websites</small>
+                  <strong>
+                    {formatTrafficCount(adminOverview.stats.totalViews)}
+                  </strong>
+                  <small>
+                    {formatTrafficCount(adminOverview.stats.viewsLast7Days)} in
+                    the last 7 days
+                  </small>
                 </article>
               </section>
 
@@ -1719,6 +1735,7 @@ export default function Home() {
                         <TableHead>Website</TableHead>
                         <TableHead>Owner</TableHead>
                         <TableHead>Pages</TableHead>
+                        <TableHead>Traffic</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Updated</TableHead>
                         <TableHead>
@@ -1738,6 +1755,15 @@ export default function Home() {
                             <small>{site.ownerEmail || 'No owner'}</small>
                           </TableCell>
                           <TableCell>{site.pageCount}</TableCell>
+                          <TableCell>
+                            <strong className="admin-traffic-count">
+                              {formatTrafficCount(site.totalViews)} views
+                            </strong>
+                            <small>
+                              {formatTrafficCount(site.viewsLast7Days)} in the
+                              last 7 days
+                            </small>
+                          </TableCell>
                           <TableCell>
                             <span
                               className={`admin-status ${

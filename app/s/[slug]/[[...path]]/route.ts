@@ -8,7 +8,7 @@ import { getPublishedSitesDatabase } from '@/lib/published-sites';
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ slug: string; path?: string[] }> },
 ) {
   const { slug, path = [] } = await context.params;
@@ -29,5 +29,9 @@ export async function GET(
   const page = selectPublishedPage(pages, path.join('/'));
   if (!page) return new Response('Page not found', { status: 404 });
 
-  return createPublishedSiteResponse(page, pages, `/s/${slug}`);
+  return createPublishedSiteResponse(page, pages, `/s/${slug}`, {
+    endpointOrigin: new URL(request.url).origin,
+    siteSlug: slug,
+    pagePath: page.slug,
+  });
 }

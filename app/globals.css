@@ -2122,7 +2122,7 @@ body {
 }
 
 .admin-table-card [data-slot='table'] {
-  min-width: 880px;
+  min-width: 980px;
 }
 
 .admin-table-card [data-slot='table-header'] {
@@ -2166,6 +2166,13 @@ body {
   color: #f2f6f4;
   font-weight: 600;
   text-overflow: ellipsis;
+}
+
+.admin-table-card [data-slot='table-cell'] .admin-traffic-count {
+  color: #d8ff00;
+  font-family: var(--font-ibm-plex-mono), monospace;
+  font-size: 10px;
+  font-weight: 500;
 }
 
 .admin-table-card [data-slot='table-cell'] small {

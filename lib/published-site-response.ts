@@ -4,6 +4,12 @@ export type PublishedPage = {
   html: string;
 };
 
+type PublishedSiteAnalytics = {
+  endpointOrigin: string;
+  siteSlug: string;
+  pagePath: string;
+};
+
 const pageSlugPattern =
   /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/;
 
@@ -54,14 +60,28 @@ function rewriteSiteLinks(
   );
 }
 
+function addTrafficBeacon(html: string, analytics: PublishedSiteAnalytics) {
+  const config = JSON.stringify({
+    endpoint: `${analytics.endpointOrigin}/api/analytics/view`,
+    slug: analytics.siteSlug,
+    path: analytics.pagePath,
+  }).replaceAll('<', '\\u003c');
+  const beacon = `<script data-freeable-analytics>(function(){try{var c=${config};var b=JSON.stringify({slug:c.slug,path:c.path});if(navigator.sendBeacon){navigator.sendBeacon(c.endpoint,b)}else{fetch(c.endpoint,{method:'POST',body:b,keepalive:true,headers:{'Content-Type':'text/plain'}})}}catch(e){}})();</script>`;
+  return /<\/body\s*>/i.test(html)
+    ? html.replace(/<\/body\s*>/i, `${beacon}</body>`)
+    : `${html}${beacon}`;
+}
+
 export function createPublishedSiteResponse(
   page: PublishedPage,
   pages: PublishedPage[],
   basePath = '',
+  analytics?: PublishedSiteAnalytics,
 ) {
-  const html = basePath
+  const linkedHtml = basePath
     ? rewriteSiteLinks(page.html, basePath, pages)
     : page.html;
+  const html = analytics ? addTrafficBeacon(linkedHtml, analytics) : linkedHtml;
   return new Response(html, {
     headers: {
       'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',

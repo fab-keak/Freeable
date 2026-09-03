@@ -66,6 +66,9 @@ export async function GET(request: Request) {
 
   try {
     const database = await getPublishedSitesDatabase();
+    const sevenDayCutoff = new Date(Date.now() - 6 * 24 * 60 * 60 * 1_000)
+      .toISOString()
+      .slice(0, 10);
     const [statsRows, userRows, siteRows] = await withTimeout(
       Promise.all([
         database`
@@ -74,8 +77,11 @@ export async function GET(request: Request) {
             (SELECT COUNT(*)::int FROM published_sites) AS website_count,
             (SELECT COUNT(*)::int FROM published_sites
               WHERE custom_domain IS NOT NULL) AS custom_domain_count,
-            (SELECT COUNT(*)::int FROM published_sites
-              WHERE created_at >= ${Date.now() - 7 * 24 * 60 * 60 * 1_000}) AS websites_this_week
+            (SELECT COALESCE(SUM(views), 0)::bigint
+              FROM site_traffic_daily) AS total_views,
+            (SELECT COALESCE(SUM(views), 0)::bigint
+              FROM site_traffic_daily
+              WHERE view_date >= ${sevenDayCutoff}) AS views_last_7_days
         `,
         database`
           SELECT accounts.id, accounts.name, accounts.email, accounts.created_at,
@@ -91,9 +97,21 @@ export async function GET(request: Request) {
                  published_sites.pages_json, published_sites.custom_domain,
                  published_sites.domain_status, published_sites.created_at,
                  published_sites.updated_at, accounts.name AS owner_name,
-                 accounts.email AS owner_email
+                 accounts.email AS owner_email,
+                 COALESCE(traffic.total_views, 0)::bigint AS total_views,
+                 COALESCE(traffic.views_last_7_days, 0)::bigint AS views_last_7_days
           FROM published_sites
           LEFT JOIN accounts ON accounts.id = published_sites.user_id
+          LEFT JOIN (
+            SELECT site_slug,
+                   SUM(views)::bigint AS total_views,
+                   COALESCE(
+                     SUM(views) FILTER (WHERE view_date >= ${sevenDayCutoff}),
+                     0
+                   )::bigint AS views_last_7_days
+            FROM site_traffic_daily
+            GROUP BY site_slug
+          ) AS traffic ON traffic.site_slug = published_sites.slug
           ORDER BY published_sites.updated_at DESC
         `,
       ]),
@@ -104,7 +122,8 @@ export async function GET(request: Request) {
       user_count?: number | string;
       website_count?: number | string;
       custom_domain_count?: number | string;
-      websites_this_week?: number | string;
+      total_views?: number | string;
+      views_last_7_days?: number | string;
     };
 
     return NextResponse.json(
@@ -113,7 +132,8 @@ export async function GET(request: Request) {
           users: Number(stats.user_count || 0),
           websites: Number(stats.website_count || 0),
           customDomains: Number(stats.custom_domain_count || 0),
-          websitesThisWeek: Number(stats.websites_this_week || 0),
+          totalViews: Number(stats.total_views || 0),
+          viewsLast7Days: Number(stats.views_last_7_days || 0),
         },
         users: userRows.map((row) => {
           const account = row as {
@@ -146,6 +166,8 @@ export async function GET(request: Request) {
             updated_at: number | string;
             owner_name: string | null;
             owner_email: string | null;
+            total_views: number | string;
+            views_last_7_days: number | string;
           };
           const customDomain = site.custom_domain || null;
           const customDomainConnected =
@@ -161,6 +183,8 @@ export async function GET(request: Request) {
             pageCount: getPageCount(site.pages_json),
             ownerName: site.owner_name || 'Unknown user',
             ownerEmail: site.owner_email || '',
+            totalViews: Number(site.total_views || 0),
+            viewsLast7Days: Number(site.views_last_7_days || 0),
             createdAt: Number(site.created_at),
             updatedAt: Number(site.updated_at),
           };
