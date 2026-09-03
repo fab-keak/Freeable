@@ -118,8 +118,21 @@ type DashboardSite = {
   customDomain: string | null;
   domainStatus: string;
   pageCount: number;
+  totalViews: number;
+  viewsLast7Days: number;
   createdAt: number;
   updatedAt: number;
+};
+type DashboardAnalytics = {
+  totalViews: number;
+  viewsLast7Days: number;
+  dailyViews: Array<{ date: string; views: number }>;
+  topSite: {
+    slug: string;
+    title: string;
+    url: string;
+    totalViews: number;
+  } | null;
 };
 type EditableDashboardSite = DashboardSite & {
   sourcePrompt: string;
@@ -258,6 +271,12 @@ function formatTrafficCount(value: number) {
     notation: value >= 10_000 ? 'compact' : 'standard',
     maximumFractionDigits: 1,
   }).format(value);
+}
+
+function formatTrafficDay(date: string) {
+  return new Intl.DateTimeFormat('en', { weekday: 'short' }).format(
+    new Date(`${date}T12:00:00Z`),
+  );
 }
 
 function getShowcaseHost(url: string) {
@@ -479,6 +498,8 @@ export default function Home() {
   const [account, setAccount] = useState<AccountUser | null>(null);
   const [showDashboard, setShowDashboard] = useState(false);
   const [dashboardSites, setDashboardSites] = useState<DashboardSite[]>([]);
+  const [dashboardAnalytics, setDashboardAnalytics] =
+    useState<DashboardAnalytics | null>(null);
   const [dashboardStatus, setDashboardStatus] =
     useState<DashboardStatus>('idle');
   const [dashboardError, setDashboardError] = useState('');
@@ -634,10 +655,12 @@ export default function Home() {
         const data = (await response.json()) as {
           error?: string;
           sites?: DashboardSite[];
+          analytics?: DashboardAnalytics;
         };
         if (!response.ok)
           throw new Error(data.error || 'Your websites could not be loaded.');
         setDashboardSites(data.sites || []);
+        setDashboardAnalytics(data.analytics || null);
         setDashboardStatus('ready');
       })
       .catch((dashboardFailure) => {
@@ -1290,6 +1313,7 @@ export default function Home() {
     setAdminOverview(null);
     setAdminStatus('idle');
     setDashboardSites([]);
+    setDashboardAnalytics(null);
     setDashboardStatus('idle');
   }
 
@@ -2113,6 +2137,151 @@ export default function Home() {
                 </Button>
               </div>
             </form>
+          </section>
+
+          <section
+            className="dashboard-analytics"
+            aria-labelledby="analytics-heading"
+          >
+            <div className="dashboard-sites-heading analytics-heading">
+              <div>
+                <p className="dashboard-section-label">Audience</p>
+                <h2 id="analytics-heading">Website analytics</h2>
+                <p>See how people are discovering your published websites.</p>
+              </div>
+              <span className="dashboard-site-count">Last 7 days</span>
+            </div>
+
+            {dashboardStatus === 'loading' && (
+              <div className="dashboard-loading" aria-live="polite">
+                <Spinner /> Loading your analytics…
+              </div>
+            )}
+
+            {dashboardStatus === 'error' && (
+              <div className="dashboard-error" role="alert">
+                <p>{dashboardError}</p>
+                <Button variant="outline" size="sm" onClick={retryDashboard}>
+                  Try again
+                </Button>
+              </div>
+            )}
+
+            {dashboardStatus === 'ready' && dashboardAnalytics && (
+              <div className="analytics-layout">
+                <div className="analytics-main">
+                  <div className="analytics-metrics">
+                    <article>
+                      <span>All-time visits</span>
+                      <strong>
+                        {formatTrafficCount(dashboardAnalytics.totalViews)}
+                      </strong>
+                      <small>Across every published site</small>
+                    </article>
+                    <article>
+                      <span>Visits this week</span>
+                      <strong>
+                        {formatTrafficCount(dashboardAnalytics.viewsLast7Days)}
+                      </strong>
+                      <small>Today and the previous 6 days</small>
+                    </article>
+                    <article>
+                      <span>Daily average</span>
+                      <strong>
+                        {formatTrafficCount(
+                          Math.round(
+                            (dashboardAnalytics.viewsLast7Days / 7) * 10,
+                          ) / 10,
+                        )}
+                      </strong>
+                      <small>Average visits over 7 days</small>
+                    </article>
+                  </div>
+
+                  <article className="analytics-chart-card">
+                    <div className="analytics-card-heading">
+                      <div>
+                        <strong>Traffic trend</strong>
+                        <span>Visits by day</span>
+                      </div>
+                      <ChartNoAxesColumn aria-hidden="true" />
+                    </div>
+                    <div
+                      className="analytics-chart"
+                      aria-label="Website visits during the last seven days"
+                    >
+                      {dashboardAnalytics.dailyViews.map((day) => {
+                        const maxViews = Math.max(
+                          1,
+                          ...dashboardAnalytics.dailyViews.map(
+                            (entry) => entry.views,
+                          ),
+                        );
+                        const height = Math.max(
+                          day.views > 0 ? 10 : 2,
+                          (day.views / maxViews) * 100,
+                        );
+                        return (
+                          <div className="analytics-chart-day" key={day.date}>
+                            <span>{formatTrafficCount(day.views)}</span>
+                            <div className="analytics-chart-track">
+                              <i
+                                style={{ height: `${height}%` }}
+                                aria-label={`${day.views} ${day.views === 1 ? 'visit' : 'visits'} on ${day.date}`}
+                              />
+                            </div>
+                            <small>{formatTrafficDay(day.date)}</small>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </article>
+                </div>
+
+                <article className="analytics-sites-card">
+                  <div className="analytics-card-heading">
+                    <div>
+                      <strong>By website</strong>
+                      <span>Ranked by all-time visits</span>
+                    </div>
+                    <Globe2 aria-hidden="true" />
+                  </div>
+                  {dashboardSites.length ? (
+                    <ol>
+                      {[...dashboardSites]
+                        .sort(
+                          (first, second) =>
+                            second.totalViews - first.totalViews,
+                        )
+                        .map((site, index) => (
+                          <li key={site.slug}>
+                            <span className="analytics-site-rank">
+                              {String(index + 1).padStart(2, '0')}
+                            </span>
+                            <div>
+                              <strong>{site.title}</strong>
+                              <small>
+                                {formatTrafficCount(site.viewsLast7Days)} this
+                                week
+                              </small>
+                            </div>
+                            <span className="analytics-site-total">
+                              {formatTrafficCount(site.totalViews)}
+                              <small>visits</small>
+                            </span>
+                          </li>
+                        ))}
+                    </ol>
+                  ) : (
+                    <div className="analytics-empty">
+                      <ChartNoAxesColumn aria-hidden="true" />
+                      <strong>Your first visits will appear here</strong>
+                      <span>Publish a website to start tracking traffic.</span>
+                    </div>
+                  )}
+                </article>
+              </div>
+            )}
           </section>
 
           <section className="dashboard-sites" aria-labelledby="sites-heading">

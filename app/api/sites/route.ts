@@ -37,13 +37,44 @@ export async function GET(request: Request) {
 
   try {
     const database = await getPublishedSitesDatabase();
-    const rows = await database`
-      SELECT slug, title, pages_json, custom_domain, domain_status, created_at, updated_at
-      FROM published_sites
-      WHERE user_id = ${user.id}
-      ORDER BY updated_at DESC
-      LIMIT 100
-    `;
+    const sevenDayCutoff = new Date(Date.now() - 6 * 24 * 60 * 60 * 1_000)
+      .toISOString()
+      .slice(0, 10);
+    const [rows, dailyRows] = await Promise.all([
+      database`
+        SELECT published_sites.slug, published_sites.title,
+               published_sites.pages_json, published_sites.custom_domain,
+               published_sites.domain_status, published_sites.created_at,
+               published_sites.updated_at,
+               COALESCE(traffic.total_views, 0)::bigint AS total_views,
+               COALESCE(traffic.views_last_7_days, 0)::bigint AS views_last_7_days
+        FROM published_sites
+        LEFT JOIN (
+          SELECT site_slug,
+                 SUM(views)::bigint AS total_views,
+                 COALESCE(
+                   SUM(views) FILTER (WHERE view_date >= ${sevenDayCutoff}),
+                   0
+                 )::bigint AS views_last_7_days
+          FROM site_traffic_daily
+          GROUP BY site_slug
+        ) AS traffic ON traffic.site_slug = published_sites.slug
+        WHERE published_sites.user_id = ${user.id}
+        ORDER BY published_sites.updated_at DESC
+        LIMIT 100
+      `,
+      database`
+        SELECT site_traffic_daily.view_date,
+               SUM(site_traffic_daily.views)::bigint AS views
+        FROM site_traffic_daily
+        INNER JOIN published_sites
+          ON published_sites.slug = site_traffic_daily.site_slug
+        WHERE published_sites.user_id = ${user.id}
+          AND site_traffic_daily.view_date >= ${sevenDayCutoff}
+        GROUP BY site_traffic_daily.view_date
+        ORDER BY site_traffic_daily.view_date ASC
+      `,
+    ]);
 
     const sites = rows.map((row) => {
       const site = row as {
@@ -54,6 +85,8 @@ export async function GET(request: Request) {
         domain_status: string;
         created_at: number | string;
         updated_at: number | string;
+        total_views: number | string;
+        views_last_7_days: number | string;
       };
       const customDomain = site.custom_domain || null;
       const customDomainConnected =
@@ -69,13 +102,51 @@ export async function GET(request: Request) {
         customDomain,
         domainStatus: site.domain_status,
         pageCount: getPageCount(site.pages_json),
+        totalViews: Number(site.total_views || 0),
+        viewsLast7Days: Number(site.views_last_7_days || 0),
         createdAt: Number(site.created_at),
         updatedAt: Number(site.updated_at),
       };
     });
 
+    const viewsByDate = new Map(
+      dailyRows.map((row) => {
+        const day = row as { view_date: string; views: number | string };
+        return [day.view_date, Number(day.views || 0)] as const;
+      }),
+    );
+    const dailyViews = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(Date.now() - (6 - index) * 24 * 60 * 60 * 1_000)
+        .toISOString()
+        .slice(0, 10);
+      return { date, views: viewsByDate.get(date) || 0 };
+    });
+    const totalViews = sites.reduce((sum, site) => sum + site.totalViews, 0);
+    const viewsLast7Days = sites.reduce(
+      (sum, site) => sum + site.viewsLast7Days,
+      0,
+    );
+    const topSite = [...sites].sort(
+      (first, second) => second.totalViews - first.totalViews,
+    )[0];
+
     return NextResponse.json(
-      { sites },
+      {
+        sites,
+        analytics: {
+          totalViews,
+          viewsLast7Days,
+          dailyViews,
+          topSite: topSite
+            ? {
+                slug: topSite.slug,
+                title: topSite.title,
+                url: topSite.url,
+                totalViews: topSite.totalViews,
+              }
+            : null,
+        },
+      },
       { headers: { 'Cache-Control': 'private, no-store' } },
     );
   } catch {
