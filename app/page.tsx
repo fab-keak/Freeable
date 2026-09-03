@@ -156,6 +156,38 @@ type AdminOverview = {
 type XTrackingWindow = Window & {
   twq?: (...args: unknown[]) => void;
 };
+
+const authRequestTimeoutMs = 8_000;
+
+function isRequestTimeout(error: unknown) {
+  return (
+    error instanceof DOMException &&
+    (error.name === 'TimeoutError' || error.name === 'AbortError')
+  );
+}
+
+async function submitAccountRequest(body: string) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        signal: AbortSignal.timeout(authRequestTimeoutMs),
+      });
+    } catch (error) {
+      if (attempt === 0 && isRequestTimeout(error)) continue;
+      if (isRequestTimeout(error)) {
+        throw new Error(
+          'Sign in is taking longer than expected. Please try again.',
+        );
+      }
+      throw error;
+    }
+  }
+
+  throw new Error('Sign in is taking longer than expected. Please try again.');
+}
 type PageStatus = 'suggested' | 'building' | 'ready' | 'error';
 type SitePage = {
   id: string;
@@ -1152,16 +1184,14 @@ export default function Home() {
     setAuthStatus('submitting');
     setAuthError('');
     try {
-      const response = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const response = await submitAccountRequest(
+        JSON.stringify({
           mode: authMode,
           name: authMode === 'signup' ? authName : undefined,
           email: authEmail,
           password: authPassword,
         }),
-      });
+      );
       const data = (await response.json()) as {
         error?: string;
         user?: AccountUser;

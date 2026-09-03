@@ -33,8 +33,16 @@ export async function getPublishedSitesDatabase() {
   database ??= postgres(databaseUrl, {
     max: 1,
     prepare: false,
-    connect_timeout: 10,
-    idle_timeout: 20,
+    connect_timeout: 5,
+    idle_timeout: 10,
+    max_lifetime: 60,
+    keep_alive: 30,
+    connection: {
+      statement_timeout: 10_000,
+      lock_timeout: 5_000,
+      idle_in_transaction_session_timeout: 10_000,
+    },
+    onnotice: () => undefined,
   });
   const sql = database;
 
