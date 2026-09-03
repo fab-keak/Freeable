@@ -330,7 +330,15 @@ function ShowcaseCard({
               {site.title}
             </a>
           </h3>
-          <ExternalLink aria-hidden="true" />
+          <a
+            className="showcase-card-open"
+            href={site.url}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`Open ${site.title} in a new tab`}
+          >
+            <ExternalLink aria-hidden="true" />
+          </a>
         </div>
         <div className="showcase-card-meta">
           <span>{getShowcaseHost(site.url)}</span>

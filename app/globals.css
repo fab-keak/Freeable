@@ -1684,10 +1684,37 @@ body {
   color: #d8ff00;
 }
 
-.showcase-card-heading svg {
-  width: 14px;
+.showcase-card-open {
+  display: grid;
+  width: 32px;
+  height: 32px;
   flex: 0 0 auto;
+  place-items: center;
+  margin: -8px -8px 0 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
   color: #66716e;
+  text-decoration: none;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.showcase-card-open svg {
+  width: 14px;
+}
+
+.showcase-card-open:hover,
+.showcase-card-open:focus-visible {
+  border-color: rgb(216 255 0 / 38%);
+  color: #d8ff00;
+  background: rgb(216 255 0 / 8%);
+}
+
+.showcase-card-open:focus-visible {
+  outline: 2px solid #d8ff00;
+  outline-offset: 2px;
 }
 
 .showcase-card-meta {
