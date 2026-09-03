@@ -2429,7 +2429,16 @@ export default function Home() {
               <span className="landing-brand-mark" aria-hidden="true">
                 <FreeableLogo />
               </span>
-              <strong>Freeable</strong>
+              <span className="landing-brand-copy">
+                <strong>Freeable</strong>
+                <a
+                  href="https://cheaperinference.com"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  by Cheaper Inference
+                </a>
+              </span>
             </div>
             <div className="landing-header-actions">
               <span className="landing-model">

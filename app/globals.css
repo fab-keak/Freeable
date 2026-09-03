@@ -1190,6 +1190,27 @@ body {
   gap: 11px;
 }
 
+.landing-brand-copy {
+  display: grid;
+  gap: 1px;
+}
+
+.landing-brand-copy a {
+  color: #7e8986;
+  font-family: var(--font-ibm-plex-mono), monospace;
+  font-size: 7px;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: color 160ms ease;
+}
+
+.landing-brand-copy a:hover,
+.landing-brand-copy a:focus-visible {
+  color: #d8ff00;
+}
+
 .landing-header-actions {
   display: flex;
   align-items: center;
@@ -3317,6 +3338,11 @@ body {
 @media (max-width: 430px) {
   .landing-brand strong {
     font-size: 14px;
+  }
+
+  .landing-brand-copy a {
+    font-size: 6px;
+    letter-spacing: 0.035em;
   }
 
   .landing-model {
