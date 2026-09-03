@@ -91,7 +91,10 @@ export async function POST(request: Request) {
     const result = await searchDomain(domain);
     if (!result.available) {
       return NextResponse.json(
-        { error: 'This domain is no longer available.' },
+        {
+          error:
+            'This domain is not available to register. Search for another domain.',
+        },
         { status: 409 },
       );
     }

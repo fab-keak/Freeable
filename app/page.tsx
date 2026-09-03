@@ -3295,7 +3295,7 @@ export default function Home() {
                     <strong>{domainSearchResult.domain} is available</strong>
                     <small>
                       {domainSearchResult.purchaseSupported
-                        ? 'Registration, HTTPS, and automatic connection are included.'
+                        ? 'Available to register now. We’ll verify it again before checkout.'
                         : 'This extension needs additional registration details.'}
                     </small>
                   </p>

@@ -80,6 +80,10 @@ function parsePrice(value: number | string) {
   return price;
 }
 
+function isExplicitlyAvailable(value: unknown) {
+  return value === true || value === 'true';
+}
+
 export async function searchDomain(domainValue: string) {
   const domain = normalizeDomain(domainValue);
   if (!isValidDomain(domain)) {
@@ -120,9 +124,15 @@ export async function searchDomain(domainValue: string) {
     );
   }
   const availability = (await availabilityResponse.json()) as {
-    available: boolean;
+    available?: unknown;
   };
-  if (!availability.available) {
+  if (!isExplicitlyAvailable(availability.available)) {
+    return { domain, available: false as const };
+  }
+
+  // A domain already attached to this Vercel account is registered, even if
+  // an upstream availability response is stale or ambiguous.
+  if (await isDomainOwnedByFreeable(domain)) {
     return { domain, available: false as const };
   }
   if (!priceResponse.ok) {
