@@ -51,6 +51,8 @@ export async function GET() {
         FROM published_sites
         LEFT JOIN site_traffic_daily
           ON site_traffic_daily.site_slug = published_sites.slug
+        WHERE COALESCE(LOWER(published_sites.custom_domain), '') NOT IN
+          ('freepokemoncall.com', 'www.freepokemoncall.com')
         GROUP BY published_sites.slug, published_sites.title,
                  published_sites.custom_domain, published_sites.domain_status,
                  published_sites.created_at
@@ -65,6 +67,8 @@ export async function GET() {
         FROM published_sites
         LEFT JOIN site_traffic_daily
           ON site_traffic_daily.site_slug = published_sites.slug
+        WHERE COALESCE(LOWER(published_sites.custom_domain), '') NOT IN
+          ('freepokemoncall.com', 'www.freepokemoncall.com')
         GROUP BY published_sites.slug, published_sites.title,
                  published_sites.custom_domain, published_sites.domain_status,
                  published_sites.created_at
