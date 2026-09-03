@@ -428,6 +428,7 @@ export default function Home() {
   const requestRef = useRef<AbortController | null>(null);
   const pageRequestsRef = useRef(new Map<string, AbortController>());
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const dashboardPromptRef = useRef<HTMLTextAreaElement | null>(null);
   const activeTemplate = getDesignTemplate(templateId);
   const selectedPage =
     sitePages.find((page) => page.id === selectedPageId) ?? sitePages[0];
@@ -1072,9 +1073,14 @@ export default function Home() {
   }
 
   function createAnotherWebsite() {
-    startOver();
     setPrompt('');
-    setShowDashboard(false);
+    setPromptImages([]);
+    setUploadError('');
+    dashboardPromptRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    });
+    dashboardPromptRef.current?.focus({ preventScroll: true });
   }
 
   async function editWebsite(siteSlugToEdit: string) {
@@ -1895,16 +1901,38 @@ export default function Home() {
         <div className="dashboard-content">
           <section className="dashboard-welcome">
             <div className="dashboard-welcome-copy">
-              <p className="eyebrow">Your Freeable workspace</p>
-              <h1>
-                Welcome back,
-                <br />
-                <span>{account.name.split(/\s+/)[0]}.</span>
-              </h1>
-              <p>
-                See everything you’ve published and turn your next idea into a
-                live website.
+              <p className="dashboard-workspace-label">
+                <span aria-hidden="true" /> Workspace overview
               </p>
+              <h1>
+                Welcome back, <span>{account.name.split(/\s+/)[0]}.</span>
+              </h1>
+              <p className="dashboard-welcome-description">
+                Continue editing a live site or turn your next idea into a
+                polished website.
+              </p>
+              <div
+                className="dashboard-workspace-meta"
+                aria-label="Workspace summary"
+              >
+                <span>
+                  <strong>
+                    {dashboardStatus === 'ready' ? dashboardSites.length : '—'}
+                  </strong>{' '}
+                  sites published
+                </span>
+                <span>
+                  <strong>
+                    {dashboardStatus === 'ready'
+                      ? dashboardSites.reduce(
+                          (total, site) => total + site.pageCount,
+                          0,
+                        )
+                      : '—'}
+                  </strong>{' '}
+                  pages live
+                </span>
+              </div>
             </div>
 
             <form className="dashboard-prompt" onSubmit={handleSubmit}>
@@ -1913,14 +1941,15 @@ export default function Home() {
                   <Sparkles />
                 </span>
                 <div>
-                  <strong>What should we build next?</strong>
-                  <small>Describe it in a sentence or two.</small>
+                  <strong>Create your next website</strong>
+                  <small>Describe the idea and Freeable will design it.</small>
                 </div>
               </div>
               <label className="sr-only" htmlFor="dashboard-site-prompt">
                 Describe your next website
               </label>
               <Textarea
+                ref={dashboardPromptRef}
                 id="dashboard-site-prompt"
                 value={prompt}
                 onChange={(event) => {
@@ -1982,10 +2011,10 @@ export default function Home() {
           <section className="dashboard-sites" aria-labelledby="sites-heading">
             <div className="dashboard-sites-heading">
               <div>
-                <p className="eyebrow">Published websites</p>
                 <h2 id="sites-heading">Your websites</h2>
+                <p>Open a site to update its pages, content, or domain.</p>
               </div>
-              <span>
+              <span className="dashboard-site-count">
                 {dashboardStatus === 'ready' ? dashboardSites.length : '—'}{' '}
                 {dashboardSites.length === 1 ? 'website' : 'websites'}
               </span>
@@ -2021,18 +2050,6 @@ export default function Home() {
                   </div>
                 )}
                 <div className="website-grid">
-                  <button
-                    type="button"
-                    className="new-website-card"
-                    onClick={createAnotherWebsite}
-                  >
-                    <span>
-                      <Plus />
-                    </span>
-                    <strong>Create a new website</strong>
-                    <small>Start with a fresh prompt</small>
-                  </button>
-
                   {dashboardSites.map((site) => (
                     <article className="website-card" key={site.slug}>
                       <div className="website-card-top">
@@ -2087,6 +2104,18 @@ export default function Home() {
                       </div>
                     </article>
                   ))}
+
+                  <button
+                    type="button"
+                    className="new-website-card"
+                    onClick={createAnotherWebsite}
+                  >
+                    <span>
+                      <Plus />
+                    </span>
+                    <strong>Build another website</strong>
+                    <small>Start with a fresh prompt</small>
+                  </button>
                 </div>
               </>
             )}
