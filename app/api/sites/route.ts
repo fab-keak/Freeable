@@ -50,7 +50,11 @@ export async function GET(request: Request) {
                published_sites.domain_status, published_sites.created_at,
                published_sites.updated_at,
                COALESCE(traffic.total_views, 0)::bigint AS total_views,
-               COALESCE(traffic.views_last_7_days, 0)::bigint AS views_last_7_days
+               COALESCE(traffic.views_last_7_days, 0)::bigint AS views_last_7_days,
+               domain_order.domain AS order_domain,
+               domain_order.status AS order_status,
+               domain_order.failure_message AS order_message,
+               domain_order.updated_at AS order_updated_at
         FROM published_sites
         LEFT JOIN (
           SELECT site_slug,
@@ -62,6 +66,14 @@ export async function GET(request: Request) {
           FROM site_traffic_daily
           GROUP BY site_slug
         ) AS traffic ON traffic.site_slug = published_sites.slug
+        LEFT JOIN LATERAL (
+          SELECT domain, status, failure_message, updated_at
+          FROM domain_orders
+          WHERE domain_orders.site_slug = published_sites.slug
+            AND domain_orders.user_id = published_sites.user_id
+          ORDER BY domain_orders.created_at DESC
+          LIMIT 1
+        ) AS domain_order ON true
         WHERE published_sites.user_id = ${user.id}
         ORDER BY published_sites.updated_at DESC
         LIMIT 100
@@ -90,6 +102,10 @@ export async function GET(request: Request) {
         updated_at: number | string;
         total_views: number | string;
         views_last_7_days: number | string;
+        order_domain: string | null;
+        order_status: string | null;
+        order_message: string | null;
+        order_updated_at: number | string | null;
       };
       const customDomain = site.custom_domain || null;
       const customDomainConnected =
@@ -107,6 +123,15 @@ export async function GET(request: Request) {
         pageCount: getPageCount(site.pages_json),
         totalViews: Number(site.total_views || 0),
         viewsLast7Days: Number(site.views_last_7_days || 0),
+        domainOrder:
+          site.order_domain && site.order_status
+            ? {
+                domain: site.order_domain,
+                status: site.order_status,
+                message: site.order_message,
+                updatedAt: Number(site.order_updated_at || 0),
+              }
+            : null,
         createdAt: Number(site.created_at),
         updatedAt: Number(site.updated_at),
       };

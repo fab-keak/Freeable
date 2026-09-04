@@ -110,6 +110,12 @@ type AuthIntent = 'account' | 'publish';
 type AuthStatus = 'idle' | 'submitting';
 type AccountUser = { name: string; email: string; isAdmin: boolean };
 type DashboardStatus = 'idle' | 'loading' | 'ready' | 'error';
+type DashboardDomainOrder = {
+  domain: string;
+  status: DomainOrderNotice['status'];
+  message: string | null;
+  updatedAt: number;
+};
 type DashboardSite = {
   slug: string;
   title: string;
@@ -120,6 +126,7 @@ type DashboardSite = {
   pageCount: number;
   totalViews: number;
   viewsLast7Days: number;
+  domainOrder: DashboardDomainOrder | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -682,6 +689,29 @@ export default function Home() {
       });
     return () => controller.abort();
   }, [account, showDashboard, dashboardRefreshKey]);
+
+  useEffect(() => {
+    if (
+      !account ||
+      !showDashboard ||
+      dashboardStatus !== 'ready' ||
+      !dashboardSites.some(
+        (site) =>
+          site.domainOrder &&
+          !['purchased', 'refunded', 'failed'].includes(
+            site.domainOrder.status,
+          ),
+      )
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(
+      () => setDashboardRefreshKey((current) => current + 1),
+      10_000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [account, dashboardSites, dashboardStatus, showDashboard]);
 
   useEffect(() => {
     if (!account?.isAdmin || !showAdminDashboard) return;
@@ -2334,60 +2364,100 @@ export default function Home() {
                   </div>
                 )}
                 <div className="website-grid">
-                  {dashboardSites.map((site) => (
-                    <article className="website-card" key={site.slug}>
-                      <div className="website-card-top">
-                        <span>
-                          <LayoutGrid />
-                        </span>
-                        <small
-                          className={
-                            site.customDomain &&
-                            site.domainStatus !== 'dns_verified'
-                              ? 'needs-domain'
-                              : ''
-                          }
-                        >
-                          {site.customDomain &&
-                          site.domainStatus !== 'dns_verified'
-                            ? 'DNS setup needed'
-                            : 'Live'}
-                        </small>
-                      </div>
-                      <div className="website-card-copy">
-                        <h3>{site.title}</h3>
-                        <p>{new URL(site.url).host}</p>
-                      </div>
-                      <div className="website-card-meta">
-                        <span>
-                          <FileText /> {site.pageCount}{' '}
-                          {site.pageCount === 1 ? 'page' : 'pages'}
-                        </span>
-                        <span>
-                          Updated {formatDashboardDate(site.updatedAt)}
-                        </span>
-                      </div>
-                      <div className="website-card-actions">
-                        <button
-                          type="button"
-                          onClick={() => void editWebsite(site.slug)}
-                          disabled={Boolean(editingSiteSlug)}
-                        >
-                          {editingSiteSlug === site.slug ? (
-                            <Spinner />
-                          ) : (
-                            <PencilLine />
+                  {dashboardSites.map((site) => {
+                    const domainProcessing = Boolean(
+                      site.domainOrder &&
+                      !['purchased', 'refunded', 'failed'].includes(
+                        site.domainOrder.status,
+                      ),
+                    );
+                    const domainProblem = Boolean(
+                      site.domainOrder &&
+                      ['refunded', 'failed'].includes(site.domainOrder.status),
+                    );
+
+                    return (
+                      <article className="website-card" key={site.slug}>
+                        <div className="website-card-top">
+                          <span>
+                            <LayoutGrid />
+                          </span>
+                          <small
+                            className={
+                              domainProcessing
+                                ? 'processing-domain'
+                                : domainProblem ||
+                                    (site.customDomain &&
+                                      site.domainStatus !== 'dns_verified')
+                                  ? 'needs-domain'
+                                  : ''
+                            }
+                          >
+                            {domainProcessing
+                              ? 'Domain processing'
+                              : domainProblem
+                                ? site.domainOrder?.status === 'refunded'
+                                  ? 'Payment refunded'
+                                  : 'Domain issue'
+                                : site.customDomain &&
+                                    site.domainStatus !== 'dns_verified'
+                                  ? 'DNS setup needed'
+                                  : 'Live'}
+                          </small>
+                        </div>
+                        <div className="website-card-copy">
+                          <h3>{site.title}</h3>
+                          <p>{new URL(site.url).host}</p>
+                        </div>
+                        {site.domainOrder &&
+                          (domainProcessing || domainProblem) && (
+                            <div
+                              className={`website-domain-progress ${domainProblem ? 'issue' : ''}`}
+                              role={domainProblem ? 'alert' : 'status'}
+                            >
+                              {domainProcessing ? <Spinner /> : <X />}
+                              <div>
+                                <strong>{site.domainOrder.domain}</strong>
+                                <span>
+                                  {domainProcessing
+                                    ? 'Being secured. It’s safe to close this page—we’ll keep working.'
+                                    : site.domainOrder.message ||
+                                      'This domain needs attention. Please contact support.'}
+                                </span>
+                              </div>
+                            </div>
                           )}
-                          {editingSiteSlug === site.slug
-                            ? 'Opening…'
-                            : 'Edit website'}
-                        </button>
-                        <a href={site.url} target="_blank" rel="noreferrer">
-                          View <ExternalLink />
-                        </a>
-                      </div>
-                    </article>
-                  ))}
+                        <div className="website-card-meta">
+                          <span>
+                            <FileText /> {site.pageCount}{' '}
+                            {site.pageCount === 1 ? 'page' : 'pages'}
+                          </span>
+                          <span>
+                            Updated {formatDashboardDate(site.updatedAt)}
+                          </span>
+                        </div>
+                        <div className="website-card-actions">
+                          <button
+                            type="button"
+                            onClick={() => void editWebsite(site.slug)}
+                            disabled={Boolean(editingSiteSlug)}
+                          >
+                            {editingSiteSlug === site.slug ? (
+                              <Spinner />
+                            ) : (
+                              <PencilLine />
+                            )}
+                            {editingSiteSlug === site.slug
+                              ? 'Opening…'
+                              : 'Edit website'}
+                          </button>
+                          <a href={site.url} target="_blank" rel="noreferrer">
+                            View <ExternalLink />
+                          </a>
+                        </div>
+                      </article>
+                    );
+                  })}
 
                   <button
                     type="button"
@@ -3645,6 +3715,15 @@ export default function Home() {
                   'Payment received. Registration and connection usually finish within a minute.'}
             </DialogDescription>
           </DialogHeader>
+          {domainOrderNotice &&
+            !['purchased', 'refunded', 'failed'].includes(
+              domainOrderNotice.status,
+            ) && (
+              <p className="domain-order-safe-close">
+                It’s safe to close this page. We’ll keep working and update your
+                dashboard automatically.
+              </p>
+            )}
           {domainOrderNotice?.url && (
             <div className="domain-order-url">
               <code>{domainOrderNotice.url}</code>
