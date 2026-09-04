@@ -13,7 +13,7 @@ import {
 import { impeccableDesignGuide } from '@/lib/impeccable-design-guide';
 
 const endpoint = 'https://api.cheaperinference.com/v1/chat/completions';
-const model = 'gpt-5.6-sol';
+const model = 'gpt-6-astra';
 const streamErrorPrefix = '__CANVAS_STREAM_ERROR__:';
 
 export const runtime = 'nodejs';
@@ -273,7 +273,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         model,
         messages,
-        reasoning_effort: 'none',
+        reasoning_effort: 'low',
         max_completion_tokens: 12_000,
         stream: true,
       }),
