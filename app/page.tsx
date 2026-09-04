@@ -2512,7 +2512,7 @@ export default function Home() {
             </div>
             <div className="landing-header-actions">
               <span className="landing-model">
-                <i /> GPT-5.6 Sol
+                <i /> GPT-6 Astra
               </span>
               {account ? (
                 <button
@@ -2648,7 +2648,7 @@ export default function Home() {
 
               <div className="landing-proof" aria-label="Builder features">
                 <span>
-                  <Sparkles /> GPT-5.6 Sol
+                  <Sparkles /> GPT-6 Astra
                 </span>
                 <span>
                   <Palette /> 8 curated directions
@@ -2778,7 +2778,7 @@ export default function Home() {
 
         <div className="model-chip">
           <span className="model-dot" />
-          GPT-5.6 Sol
+          GPT-6 Astra
         </div>
 
         <div className="studio-actions">
@@ -2957,7 +2957,7 @@ export default function Home() {
                   <div className="building-orbit">
                     <Spinner />
                   </div>
-                  <p className="eyebrow">building with gpt-5.6 sol</p>
+                  <p className="eyebrow">building with gpt-6 astra</p>
                   <h2>
                     {status === 'building'
                       ? 'Turning your idea into a website'
