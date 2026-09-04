@@ -41,6 +41,13 @@ type DomainOrderRow = {
   updated_at: number;
 };
 
+const terminalOrderStatuses = new Set<DomainOrderStatus>([
+  'purchased',
+  'refunded',
+  'failed',
+]);
+const stalePurchaseClaimMs = 90_000;
+
 function asOrder(row: unknown) {
   return row as DomainOrderRow;
 }
@@ -256,6 +263,101 @@ export async function fulfillDomainOrder(session: Stripe.Checkout.Session) {
         : 'The domain could not be purchased.';
     return refundOrder(order, message);
   }
+}
+
+function waitForNextRegistrarCheck(delayMs: number) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+export async function continueDomainOrderUntilSettled(
+  orderValue: DomainOrderRow | null,
+  options: { attempts?: number; delayMs?: number } = {},
+) {
+  let order = orderValue;
+  const attempts = Math.max(0, options.attempts ?? 5);
+  const delayMs = Math.max(500, options.delayMs ?? 3_000);
+
+  for (
+    let attempt = 0;
+    order && !terminalOrderStatuses.has(order.status) && attempt < attempts;
+    attempt += 1
+  ) {
+    await waitForNextRegistrarCheck(delayMs);
+    order = await refreshDomainOrder(order);
+  }
+
+  return order;
+}
+
+async function resumeDomainOrder(order: DomainOrderRow) {
+  const database = await getPublishedSitesDatabase();
+
+  if (order.status === 'checkout_pending' || order.status === 'paid') {
+    if (!order.stripe_session_id) return order;
+    const session = await getStripe().checkout.sessions.retrieve(
+      order.stripe_session_id,
+    );
+    return session.payment_status === 'paid'
+      ? fulfillDomainOrder(session)
+      : order;
+  }
+
+  if (
+    order.status === 'purchasing' &&
+    order.updated_at < Date.now() - stalePurchaseClaimMs &&
+    order.stripe_session_id
+  ) {
+    const recovered = await database`
+      UPDATE domain_orders
+      SET status = 'paid', updated_at = ${Date.now()}
+      WHERE id = ${order.id} AND status = 'purchasing'
+        AND updated_at < ${Date.now() - stalePurchaseClaimMs}
+      RETURNING *
+    `;
+    if (!recovered[0]) return order;
+    const session = await getStripe().checkout.sessions.retrieve(
+      order.stripe_session_id,
+    );
+    return session.payment_status === 'paid'
+      ? fulfillDomainOrder(session)
+      : asOrder(recovered[0]);
+  }
+
+  return refreshDomainOrder(order);
+}
+
+export async function reconcileDomainOrdersForUser(userId: string) {
+  const database = await getPublishedSitesDatabase();
+  const rows = await database`
+    SELECT * FROM domain_orders
+    WHERE user_id = ${userId}
+      AND status IN (
+        'checkout_pending', 'paid', 'purchasing',
+        'purchase_pending', 'connection_pending'
+      )
+      AND stripe_session_id IS NOT NULL
+    ORDER BY updated_at ASC
+    LIMIT 10
+  `;
+
+  await Promise.allSettled(rows.map((row) => resumeDomainOrder(asOrder(row))));
+}
+
+export async function reconcilePendingDomainOrders(limit = 20) {
+  const database = await getPublishedSitesDatabase();
+  const safeLimit = Math.min(50, Math.max(1, Math.round(limit)));
+  const rows = await database`
+    SELECT * FROM domain_orders
+    WHERE status IN (
+        'checkout_pending', 'paid', 'purchasing',
+        'purchase_pending', 'connection_pending'
+      )
+      AND stripe_session_id IS NOT NULL
+    ORDER BY updated_at ASC
+    LIMIT ${safeLimit}
+  `;
+
+  await Promise.allSettled(rows.map((row) => resumeDomainOrder(asOrder(row))));
 }
 
 export async function getDomainOrderForUser(input: {

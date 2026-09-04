@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 
 import { getAuthenticatedUser } from '@/lib/auth';
+import { reconcileDomainOrdersForUser } from '@/lib/domain-orders';
 import { getPublishedSitesDatabase } from '@/lib/published-sites';
 
 export const runtime = 'nodejs';
+export const maxDuration = 30;
 
 function getFreeSiteUrl(slug: string) {
   const freeSiteDomain =
@@ -36,6 +38,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    await reconcileDomainOrdersForUser(user.id).catch(() => undefined);
     const database = await getPublishedSitesDatabase();
     const sevenDayCutoff = new Date(Date.now() - 6 * 24 * 60 * 60 * 1_000)
       .toISOString()

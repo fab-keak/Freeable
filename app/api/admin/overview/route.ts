@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { isAdminEmail } from '@/lib/admin';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { reconcilePendingDomainOrders } from '@/lib/domain-orders';
 import { getPublishedSitesDatabase } from '@/lib/published-sites';
 
 export const runtime = 'nodejs';
@@ -65,6 +66,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    await reconcilePendingDomainOrders().catch(() => undefined);
     const database = await getPublishedSitesDatabase();
     const sevenDayCutoff = new Date(Date.now() - 6 * 24 * 60 * 60 * 1_000)
       .toISOString()

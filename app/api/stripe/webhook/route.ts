@@ -1,8 +1,15 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 
-import { expireDomainCheckout, fulfillDomainOrder } from '@/lib/domain-orders';
+import {
+  continueDomainOrderUntilSettled,
+  expireDomainCheckout,
+  fulfillDomainOrder,
+} from '@/lib/domain-orders';
 import { getStripe, getStripeWebhookSecret } from '@/lib/stripe';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const signature = request.headers.get('stripe-signature');
@@ -30,7 +37,12 @@ export async function POST(request: Request) {
       event.type === 'checkout.session.completed' ||
       event.type === 'checkout.session.async_payment_succeeded'
     ) {
-      await fulfillDomainOrder(event.data.object);
+      const order = await fulfillDomainOrder(event.data.object);
+      if (order) {
+        after(async () => {
+          await continueDomainOrderUntilSettled(order).catch(() => undefined);
+        });
+      }
     } else if (event.type === 'checkout.session.expired') {
       await expireDomainCheckout(event.data.object.id);
     }
